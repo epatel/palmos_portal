@@ -54,9 +54,13 @@
   /* Record list */
   .record-list { padding: 8px; }
   .record-item { background: white; border: 1px solid #eee; border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; }
-  .record-item .rec-header { font-size: 11px; color: #999; margin-bottom: 4px; }
-  .record-item .rec-text { font-size: 13px; white-space: pre-wrap; word-break: break-word; }
-  .record-item .rec-hex { font-family: monospace; font-size: 11px; color: #666; word-break: break-all; }
+  .record-item .rec-header { font-size: 13px; color: #888; margin-bottom: 6px; font-weight: 500; }
+  .record-item .rec-text { font-size: 15px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .record-item .rec-hex { font-family: monospace; font-size: 12px; color: #666; word-break: break-all; }
+  .record-item textarea { font-size: 15px; line-height: 1.5; width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 8px; font-family: inherit; resize: vertical; min-height: 60px; }
+  .record-item textarea:focus { outline: none; border-color: #3498db; }
+  .record-item .rec-actions { margin-top: 8px; display: flex; gap: 6px; justify-content: flex-end; }
+  .record-item .rec-actions button { font-size: 12px; }
 
   /* Resource list */
   .resource-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -267,10 +271,16 @@ function renderPreview(data) {
   } else if (data.kind === 'memos') {
     document.getElementById('previewMeta').textContent = `${data.entries.length} memos`;
     let html = '<div class="record-list">';
-    data.entries.forEach(m => {
-      html += `<div class="record-item">
+    data.entries.forEach((m, i) => {
+      const full = m.title + (m.body ? '\n' + m.body : '');
+      html += `<div class="record-item" id="memo-${i}">
         <div class="rec-header">${esc(m.title)}</div>
-        <div class="rec-text">${esc(m.body)}</div></div>`;
+        <div class="rec-text memo-view" onclick="editMemo(${i}, this)">${esc(m.body)}</div>
+        <textarea class="memo-edit" style="display:none" data-index="${i}">${esc(full)}</textarea>
+        <div class="rec-actions" style="display:none">
+          <button class="secondary" onclick="cancelMemo(${i})">Cancel</button>
+          <button onclick="saveMemo('${esc(data.name)}', ${i})">Save</button>
+        </div></div>`;
     });
     body.innerHTML = html + '</div>';
   } else if (data.kind === 'datebook') {
@@ -387,6 +397,40 @@ function uploadFiles(files) {
       .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); })
       .catch(e => toast(e.message, true));
   }
+}
+
+// Memo editing
+function editMemo(idx, el) {
+  const item = document.getElementById('memo-' + idx);
+  item.querySelector('.memo-view').style.display = 'none';
+  item.querySelector('.rec-header').style.display = 'none';
+  const ta = item.querySelector('.memo-edit');
+  ta.style.display = '';
+  ta.style.height = Math.max(120, ta.scrollHeight) + 'px';
+  ta.focus();
+  item.querySelector('.rec-actions').style.display = '';
+}
+
+function cancelMemo(idx) {
+  const item = document.getElementById('memo-' + idx);
+  item.querySelector('.memo-view').style.display = '';
+  item.querySelector('.rec-header').style.display = '';
+  item.querySelector('.memo-edit').style.display = 'none';
+  item.querySelector('.rec-actions').style.display = 'none';
+}
+
+function saveMemo(dbName, idx) {
+  const item = document.getElementById('memo-' + idx);
+  const text = item.querySelector('.memo-edit').value;
+  toast('Saving...');
+  fetch('/api/edit/' + encodeURIComponent(dbName) + '/' + idx, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ text: text })
+  })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Saved'); loadPreview(dbName); })
+  .catch(e => toast(e.message, true));
 }
 
 // 3D Viewer (inline in preview panel)

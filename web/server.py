@@ -425,6 +425,39 @@ async def backup_all():
     return Response(content="No backup available. Trigger backup first.", status_code=404)
 
 
+from pydantic import BaseModel
+
+class EditRequest(BaseModel):
+    text: str
+
+@app.post("/api/edit/{name}/{index}")
+async def edit_record(name: str, index: int, req: EditRequest):
+    """Edit a memo record on the device."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        def _do_edit():
+            from palm.dlp import DB_MODE_READ_WRITE, Record as DLPRecord
+            dlp = device_manager.dlp
+            handle = dlp.open_db(name, DB_MODE_READ_WRITE)
+            try:
+                existing = dlp.read_record(handle, index)
+                new_data = req.text.encode("cp1252", errors="replace") + b"\x00"
+                dlp.write_record(handle, DLPRecord(
+                    index=index,
+                    attributes=existing.attributes & 0x0F,
+                    unique_id=existing.unique_id,
+                    data=new_data,
+                ))
+            finally:
+                dlp.close_db(handle)
+
+        await asyncio.get_event_loop().run_in_executor(None, _do_edit)
+        return {"status": "ok"}
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
+
+
 @app.get("/api/preview/{name}")
 async def preview_database(name: str):
     """Return database content for preview (records as text, resources as list)."""
