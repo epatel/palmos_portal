@@ -147,7 +147,8 @@ class Connection:
         return result
 
     def write(self, data: bytes) -> None:
-        self._ep_out.write(data)
+        logger.debug(f"USB write: {len(data)} bytes")
+        self._ep_out.write(data, timeout=15000)
 
     def __enter__(self) -> Connection:
         self.open()

@@ -74,8 +74,9 @@ class PADPConnection:
 
         txn_id = self._next_txn_id()
         fragments = fragment_payload(data)
+        logger.debug(f"PADP send: {len(data)} bytes in {len(fragments)} fragment(s), txn=0x{txn_id:02X}")
 
-        for flags, chunk in fragments:
+        for frag_idx, (flags, chunk) in enumerate(fragments):
             header = self.build_padp_header(PADP_TYPE_DATA, flags, len(chunk))
             body = header + chunk
             max_attempts = 3
@@ -103,6 +104,7 @@ class PADPConnection:
                     # Got a stale/unrelated packet, keep reading
                     logger.debug(f"Skipped packet: txn=0x{ack_pkt.txn_id:02X} padp_type={ack_type}")
                 if got_ack:
+                    logger.debug(f"  Fragment {frag_idx+1}/{len(fragments)} ACKed ({len(chunk)} bytes)")
                     break
             else:
                 raise TimeoutError("No ACK received after retries")
