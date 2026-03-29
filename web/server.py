@@ -92,7 +92,12 @@ class DeviceManager:
                     self.conn.open()
                     break
                 except ConnectionError:
+                    self.conn = None
                     time.sleep(1)
+                    continue
+                except Exception:
+                    self.conn = None
+                    time.sleep(2)
                     continue
 
             if not self._running:
@@ -270,12 +275,15 @@ class DeviceManager:
         return db.to_bytes(), ext
 
     def _cleanup(self):
-        """Clean up device connection."""
+        """Clean up device connection without USB reset (avoids segfault)."""
         self.state = "disconnected"
         self._send_event({"type": "status", "state": "disconnected"})
         if self.conn:
+            # Don't call conn.close() which does dev.reset() — just drop refs
             try:
-                self.conn.close()
+                self.conn._dev = None
+                self.conn._ep_in = None
+                self.conn._ep_out = None
             except Exception:
                 pass
         self.conn = None
