@@ -87,17 +87,19 @@ class DeviceManager:
             self._send_event({"type": "status", "state": "waiting"})
 
             while self._running:
+                import usb.core
+                # Only try to open if device is on the bus
+                dev = usb.core.find(idVendor=0x082D, idProduct=0x0100)
+                if dev is None:
+                    time.sleep(1)
+                    continue
                 try:
                     self.conn = Connection()
                     self.conn.open()
                     break
-                except ConnectionError:
-                    self.conn = None
-                    time.sleep(1)
-                    continue
                 except Exception:
                     self.conn = None
-                    time.sleep(2)
+                    time.sleep(3)
                     continue
 
             if not self._running:
@@ -141,9 +143,7 @@ class DeviceManager:
                 # Auto-list databases on connect
                 self._do_list()
 
-            except Exception as e:
-                logger.error(f"Connection failed: {e}")
-                self._send_event({"type": "error", "message": str(e)})
+            except Exception:
                 self._cleanup()
                 continue
 
