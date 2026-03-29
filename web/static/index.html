@@ -641,30 +641,52 @@ function initViewer(data, container) {
   const size = new THREE.Vector3(); geom.boundingBox.getSize(size);
   const maxDim = Math.max(size.x, size.y, size.z);
 
-  scene.add(new THREE.Mesh(geom, new THREE.MeshPhongMaterial({ color: 0x4a90d9, specular: 0x222222, shininess: 40, flatShading: true, side: THREE.DoubleSide })));
-  scene.add(new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color: 0x88bbff, wireframe: true, transparent: true, opacity: 0.15 })));
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(geom, new THREE.MeshPhongMaterial({ color: 0x4a90d9, specular: 0x222222, shininess: 40, flatShading: true, side: THREE.DoubleSide })));
+  group.add(new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color: 0x88bbff, wireframe: true, transparent: true, opacity: 0.15 })));
+  scene.add(group);
   scene.add(new THREE.AmbientLight(0x404040));
   const l1 = new THREE.DirectionalLight(0xffffff, 0.8); l1.position.set(5,5,5); scene.add(l1);
   const l2 = new THREE.DirectionalLight(0x8888ff, 0.4); l2.position.set(-5,-3,-5); scene.add(l2);
-  camera.position.set(0, maxDim*0.5, maxDim*2); camera.lookAt(0,0,0);
+  const camDist = maxDim * 2.5;
+  camera.position.set(0, 0, camDist); camera.lookAt(0,0,0);
 
-  let drag=false, px, py, rx=0, ry=0;
-  renderer.domElement.addEventListener('mousedown', e => { drag=true; px=e.clientX; py=e.clientY; });
-  window.addEventListener('mouseup', () => drag=false);
+  // Trackball rotation — maps mouse drag to rotation on a virtual sphere
+  let drag = false, px, py;
+  function trackballVector(x, y) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const v = new THREE.Vector3(
+      (x - rect.left) / rect.width * 2 - 1,
+      -((y - rect.top) / rect.height * 2 - 1),
+      0
+    );
+    const len2 = v.x * v.x + v.y * v.y;
+    v.z = len2 < 0.5 ? Math.sqrt(1 - len2) : 0.5 / Math.sqrt(len2);
+    v.normalize();
+    return v;
+  }
+  renderer.domElement.addEventListener('mousedown', e => { drag = true; px = e.clientX; py = e.clientY; });
+  window.addEventListener('mouseup', () => drag = false);
   renderer.domElement.addEventListener('mousemove', e => {
     if (!drag) return;
-    ry -= (e.clientX-px)*0.01; rx -= (e.clientY-py)*0.01;
-    rx = Math.max(-Math.PI/2, Math.min(Math.PI/2, rx));
-    px=e.clientX; py=e.clientY;
+    const va = trackballVector(px, py);
+    const vb = trackballVector(e.clientX, e.clientY);
+    const axis = new THREE.Vector3().crossVectors(va, vb).normalize();
+    const angle = Math.acos(Math.min(1, va.dot(vb)));
+    if (angle > 0.001) {
+      const q = new THREE.Quaternion().setFromAxisAngle(axis, angle * 2);
+      group.quaternion.premultiply(q);
+    }
+    px = e.clientX; py = e.clientY;
   });
-  renderer.domElement.addEventListener('wheel', e => { e.preventDefault(); camera.position.multiplyScalar(e.deltaY>0?1.1:0.9); }, {passive:false});
+  renderer.domElement.addEventListener('wheel', e => {
+    e.preventDefault();
+    camera.position.z *= e.deltaY > 0 ? 1.1 : 0.9;
+  }, {passive: false});
 
   currentRenderer = renderer;
   (function animate() {
     currentAnimId = requestAnimationFrame(animate);
-    const d = camera.position.length();
-    camera.position.set(d*Math.sin(ry)*Math.cos(rx), d*Math.sin(rx), d*Math.cos(ry)*Math.cos(rx));
-    camera.lookAt(0,0,0);
     renderer.render(scene, camera);
   })();
 }
