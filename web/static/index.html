@@ -295,12 +295,37 @@ function renderPreview(data) {
     body.innerHTML = html + '</div>';
   } else if (data.kind === 'todo') {
     document.getElementById('previewMeta').textContent = `${data.entries.length} items`;
+    // Store for editing
+    window._todoData = data;
     let html = '<div class="record-list">';
-    data.entries.forEach(t => {
-      const check = t.completed ? '\u2611' : '\u2610';
+    data.entries.forEach((t, i) => {
+      const checked = t.completed ? 'checked' : '';
       const style = t.completed ? 'text-decoration:line-through; opacity:0.6' : '';
-      html += `<div class="record-item">
-        <div class="rec-text" style="${style}">${check} <strong>[${t.priority}]</strong> ${esc(t.description)}${t.due ? ' <span style="color:#999">(due ' + esc(t.due) + ')</span>' : ''}${t.note ? '\n' + esc(t.note) : ''}</div></div>`;
+      html += `<div class="record-item" id="todo-${i}">
+        <div class="todo-view" style="${style}">
+          <label style="cursor:pointer"><input type="checkbox" ${checked} onchange="toggleTodo('${esc(data.name)}', ${i}, this.checked)">
+          <strong>[${t.priority}]</strong>
+          <span class="todo-desc" onclick="editTodo(${i})">${esc(t.description)}</span></label>
+          ${t.due ? ' <span style="color:#999">(due ' + esc(t.due) + ')</span>' : ''}
+          ${t.note ? '<div style="margin-top:4px;color:#666;font-size:13px">' + esc(t.note) + '</div>' : ''}
+        </div>
+        <div class="todo-edit" style="display:none">
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <input type="text" class="todo-desc-input" value="${esc(t.description)}" style="flex:1;font-size:15px;padding:4px 8px;border:1px solid #ddd;border-radius:3px">
+            <select class="todo-pri-input" style="padding:4px;border:1px solid #ddd;border-radius:3px">
+              ${[1,2,3,4,5].map(p => `<option value="${p}" ${p===t.priority?'selected':''}>${p}</option>`).join('')}
+            </select>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <input type="date" class="todo-due-input" value="${t.due||''}" style="font-size:13px;padding:4px 8px;border:1px solid #ddd;border-radius:3px">
+            <input type="text" class="todo-note-input" placeholder="Note" value="${esc(t.note||'')}" style="flex:1;font-size:13px;padding:4px 8px;border:1px solid #ddd;border-radius:3px">
+          </div>
+          <div class="rec-actions">
+            <button class="secondary" onclick="cancelTodoEdit(${i})">Cancel</button>
+            <button onclick="saveTodo('${esc(data.name)}', ${i})">Save</button>
+          </div>
+        </div>
+      </div>`;
     });
     body.innerHTML = html + '</div>';
   } else if (data.kind === 'address') {
@@ -428,6 +453,54 @@ function saveMemo(dbName, idx) {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ text: text })
+  })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Saved'); loadPreview(dbName); })
+  .catch(e => toast(e.message, true));
+}
+
+// Todo editing
+function toggleTodo(dbName, idx, completed) {
+  const t = window._todoData.entries[idx];
+  toast('Saving...');
+  fetch('/api/edit-todo/' + encodeURIComponent(dbName) + '/' + t.index, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ description: t.description, priority: t.priority, completed, note: t.note||'', due: t.due||'' })
+  })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Saved'); loadPreview(dbName); })
+  .catch(e => toast(e.message, true));
+}
+
+function editTodo(idx) {
+  const item = document.getElementById('todo-' + idx);
+  item.querySelector('.todo-view').style.display = 'none';
+  item.querySelector('.todo-edit').style.display = '';
+  item.querySelector('.todo-desc-input').focus();
+}
+
+function cancelTodoEdit(idx) {
+  const item = document.getElementById('todo-' + idx);
+  item.querySelector('.todo-view').style.display = '';
+  item.querySelector('.todo-edit').style.display = 'none';
+}
+
+function saveTodo(dbName, idx) {
+  const item = document.getElementById('todo-' + idx);
+  const t = window._todoData.entries[idx];
+  const data = {
+    description: item.querySelector('.todo-desc-input').value,
+    priority: parseInt(item.querySelector('.todo-pri-input').value),
+    completed: t.completed,
+    note: item.querySelector('.todo-note-input').value,
+    due: item.querySelector('.todo-due-input').value,
+  };
+  toast('Saving...');
+  fetch('/api/edit-todo/' + encodeURIComponent(dbName) + '/' + t.index, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
   })
   .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
   .then(() => { toast('Saved'); loadPreview(dbName); })

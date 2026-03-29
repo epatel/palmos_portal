@@ -431,6 +431,13 @@ from pydantic import BaseModel
 class EditRequest(BaseModel):
     text: str
 
+class TodoEditRequest(BaseModel):
+    description: str
+    priority: int = 1
+    completed: bool = False
+    note: str = ""
+    due: str = ""  # "YYYY-MM-DD" or ""
+
 @app.post("/api/edit/{name}/{index}")
 async def edit_record(name: str, index: int, req: EditRequest):
     """Edit a memo record on the device."""
@@ -450,6 +457,51 @@ async def edit_record(name: str, index: int, req: EditRequest):
                         attributes=existing.attributes & 0x0F,
                         unique_id=existing.unique_id,
                         data=new_data,
+                    ))
+                finally:
+                    dlp.close_db(handle)
+
+        await asyncio.get_event_loop().run_in_executor(None, _do_edit)
+        return {"status": "ok"}
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
+
+
+def _pack_palm_date(date_str: str) -> bytes:
+    """Pack a date string (YYYY-MM-DD) into 2-byte PalmOS date."""
+    if not date_str:
+        return struct.pack(">H", 0xFFFF)
+    parts = date_str.split("-")
+    year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+    val = ((year - 1904) << 9) | (month << 5) | day
+    return struct.pack(">H", val)
+
+
+@app.post("/api/edit-todo/{name}/{index}")
+async def edit_todo(name: str, index: int, req: TodoEditRequest):
+    """Edit a todo record on the device."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        def _do_edit():
+            from palm.dlp import DB_MODE_READ_WRITE, Record as DLPRecord
+            with device_manager._dlp_lock:
+                dlp = device_manager.dlp
+                handle = dlp.open_db(name, DB_MODE_READ_WRITE)
+                try:
+                    existing = dlp.read_record(handle, index)
+                    # Build todo record: date(2) + priority(1) + desc\0 + note\0
+                    data = _pack_palm_date(req.due)
+                    data += bytes([req.priority])
+                    data += req.description.encode("cp1252", errors="replace") + b"\x00"
+                    data += req.note.encode("cp1252", errors="replace") + b"\x00"
+                    # Set completed flag in attributes
+                    attrs = existing.attributes & 0x0F  # keep category
+                    if req.completed:
+                        attrs |= 0x80
+                    dlp.write_record(handle, DLPRecord(
+                        index=index, attributes=attrs,
+                        unique_id=existing.unique_id, data=data,
                     ))
                 finally:
                     dlp.close_db(handle)
@@ -655,6 +707,7 @@ def _preview_todo(db) -> dict:
         note = parts[1].decode("cp1252", errors="replace") if len(parts) > 1 else ""
         completed = bool(r.attributes & 0x80)
         entry = {
+            "index": i,
             "description": description,
             "priority": priority,
             "completed": completed,
