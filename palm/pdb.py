@@ -344,7 +344,7 @@ class PalmDatabase:
         try:
             dlp.delete_db(self.name)
         except DLPException as e:
-            if e.error_code != DLPError.NOT_FOUND:
+            if e.error_code not in (DLPError.NOT_FOUND, DLPError.NONE_OPEN):
                 raise
 
         # Create the database

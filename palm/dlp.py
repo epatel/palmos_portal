@@ -352,18 +352,18 @@ class DLPClient:
 
     def delete_db(self, name: str) -> None:
         name_bytes = name.encode("latin-1") + b"\x00"
-        arg_data = struct.pack(">B", 0) + name_bytes
+        arg_data = struct.pack(">BB", 0, 0) + name_bytes
         arg = DLPArg(arg_id=0x20, data=arg_data)
         self._execute(DLPFuncID.DELETE_DB, [arg])
 
-    def create_db(self, name: str, creator: bytes, db_type: bytes,
+    def create_db(self, name: str, creator: str, db_type: str,
                   flags: int = 0, version: int = 0) -> int:
         name_bytes = name.encode("latin-1") + b"\x00"
-        arg_data = (struct.pack(">B", 0) +
-                    struct.pack(">I", flags) +
-                    creator[:4] +
-                    db_type[:4] +
-                    struct.pack(">HH", version, 0) +
+        creator_b = creator.encode("latin-1")[:4].ljust(4, b"\x00")
+        type_b = db_type.encode("latin-1")[:4].ljust(4, b"\x00")
+        # Format: creator(4) + type(4) + card(1) + pad(1) + flags(2) + version(2) + name
+        arg_data = (creator_b + type_b +
+                    struct.pack(">BBHH", 0, 0, flags, version) +
                     name_bytes)
         arg = DLPArg(arg_id=0x20, data=arg_data)
         resp_args = self._execute(DLPFuncID.CREATE_DB, [arg])
@@ -421,8 +421,10 @@ class DLPClient:
 
     def write_resource(self, handle: int, resource: Resource) -> None:
         size = len(resource.data)
-        arg_data = (struct.pack(">B", handle) +
-                    resource.res_type[:4] +
+        res_type_b = resource.res_type.encode("latin-1")[:4].ljust(4, b"\x00")
+        # Format: handle(1) + pad(1) + type(4) + resID(2) + size(2) + data
+        arg_data = (struct.pack(">BB", handle, 0) +
+                    res_type_b +
                     struct.pack(">HH", resource.res_id, size) +
                     resource.data)
         arg = DLPArg(arg_id=0x20, data=arg_data)
