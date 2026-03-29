@@ -264,6 +264,52 @@ function renderPreview(data) {
     });
     html += '</tbody></table></div></div>';
     body.innerHTML = html;
+  } else if (data.kind === 'memos') {
+    document.getElementById('previewMeta').textContent = `${data.entries.length} memos`;
+    let html = '<div class="record-list">';
+    data.entries.forEach(m => {
+      html += `<div class="record-item">
+        <div class="rec-header">${esc(m.title)}</div>
+        <div class="rec-text">${esc(m.body)}</div></div>`;
+    });
+    body.innerHTML = html + '</div>';
+  } else if (data.kind === 'datebook') {
+    document.getElementById('previewMeta').textContent = `${data.entries.length} events`;
+    let html = '<div class="record-list">';
+    data.entries.forEach(e => {
+      html += `<div class="record-item">
+        <div class="rec-header">${esc(e.date)}${e.time ? ' ' + esc(e.time) : ' (untimed)'}</div>
+        <div class="rec-text">${esc(e.description)}${e.note ? '\n\n' + esc(e.note) : ''}</div></div>`;
+    });
+    body.innerHTML = html + '</div>';
+  } else if (data.kind === 'todo') {
+    document.getElementById('previewMeta').textContent = `${data.entries.length} items`;
+    let html = '<div class="record-list">';
+    data.entries.forEach(t => {
+      const check = t.completed ? '\u2611' : '\u2610';
+      const style = t.completed ? 'text-decoration:line-through; opacity:0.6' : '';
+      html += `<div class="record-item">
+        <div class="rec-text" style="${style}">${check} <strong>[${t.priority}]</strong> ${esc(t.description)}${t.due ? ' <span style="color:#999">(due ' + esc(t.due) + ')</span>' : ''}${t.note ? '\n' + esc(t.note) : ''}</div></div>`;
+    });
+    body.innerHTML = html + '</div>';
+  } else if (data.kind === 'address') {
+    document.getElementById('previewMeta').textContent = `${data.entries.length} contacts`;
+    let html = '<div class="record-list">';
+    data.entries.forEach(a => {
+      const name = [a.First, a.Last].filter(Boolean).join(' ') || a.Company || 'No name';
+      let details = '';
+      if (a.Company && a.First) details += a.Company + '\n';
+      if (a.Title) details += a.Title + '\n';
+      ['Phone1','Phone2','Phone3','Phone4','Phone5'].forEach(p => { if (a[p]) details += a[p] + '\n'; });
+      if (a.Address) details += a.Address + '\n';
+      const city = [a.City, a.State, a.Zip].filter(Boolean).join(', ');
+      if (city) details += city + '\n';
+      if (a.Country) details += a.Country;
+      html += `<div class="record-item">
+        <div class="rec-header">${esc(name)}</div>
+        <div class="rec-text">${esc(details.trim())}</div></div>`;
+    });
+    body.innerHTML = html + '</div>';
   } else if (data.kind === 'records') {
     document.getElementById('previewMeta').textContent = `${data.type} / ${data.creator} - ${data.records.length} records`;
     let html = '<div class="record-list">';

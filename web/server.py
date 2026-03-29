@@ -483,7 +483,18 @@ async def preview_database(name: str):
                 resources.append(rinfo)
             return {"kind": "app", "info": app_info, "resources": resources}
 
-        # Record database — try to show as text
+        # Format-aware record parsing for known database types
+        creator = db.creator.strip()
+        if creator == "memo":
+            return _preview_memo(db)
+        elif creator == "date":
+            return _preview_datebook(db)
+        elif creator == "todo":
+            return _preview_todo(db)
+        elif creator == "addr":
+            return _preview_address(db)
+
+        # Generic record database — try to show as text
         records = []
         for i, r in enumerate(db.records):
             try:
@@ -498,6 +509,158 @@ async def preview_database(name: str):
                 "creator": db.creator, "records": records}
     except Exception as e:
         return Response(content=str(e), status_code=500)
+
+
+def _palm_date(raw: bytes, offset: int) -> str:
+    """Parse a packed PalmOS date (2 bytes) into a string."""
+    val = struct.unpack(">H", raw[offset:offset + 2])[0]
+    if val == 0xFFFF or val == 0:
+        return ""
+    year = ((val >> 9) & 0x7F) + 1904
+    month = (val >> 5) & 0x0F
+    day = val & 0x1F
+    return f"{year}-{month:02d}-{day:02d}"
+
+
+def _palm_time(raw: bytes, offset: int) -> str:
+    """Parse a PalmOS time (start/end as hour+minute bytes)."""
+    hour = raw[offset]
+    minute = raw[offset + 1]
+    if hour == 0xFF:
+        return ""
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _preview_memo(db) -> dict:
+    """Parse MemoDB — records are null-terminated text, first line is title."""
+    entries = []
+    for i, r in enumerate(db.records):
+        text = r.data.rstrip(b"\x00").decode("latin-1", errors="replace")
+        lines = text.split("\n", 1)
+        entries.append({
+            "title": lines[0] if lines else "",
+            "body": lines[1].strip() if len(lines) > 1 else "",
+        })
+    return {"kind": "memos", "name": db.name, "entries": entries}
+
+
+def _preview_datebook(db) -> dict:
+    """Parse DatebookDB records.
+
+    Record format:
+    - Byte 0: start hour (0xFF = untimed)
+    - Byte 1: start minute
+    - Byte 2: end hour
+    - Byte 3: end minute
+    - Bytes 4-5: packed date (year/month/day)
+    - Bytes 6-7: attributes/flags
+    - Then optional description and note (null-separated strings)
+    """
+    entries = []
+    for i, r in enumerate(db.records):
+        d = r.data
+        if len(d) < 8:
+            continue
+        start_time = _palm_time(d, 0)
+        end_time = _palm_time(d, 2)
+        date = _palm_date(d, 4)
+        # Find description after the fixed header
+        # Attributes byte 6 has flags for alarm, repeat, note, etc.
+        attr = struct.unpack(">H", d[6:8])[0]
+        has_alarm = bool(attr & 0x4000)
+        has_repeat = bool(attr & 0x2000)
+        has_note = bool(attr & 0x1000)
+        has_exceptions = bool(attr & 0x0800)
+        has_description = bool(attr & 0x0400)
+        # Skip optional fields to find description
+        offset = 8
+        if has_alarm:
+            offset += 2  # advance, units
+        if has_repeat:
+            offset += 8  # repeat info
+        if has_exceptions:
+            num_ex = struct.unpack(">H", d[offset:offset + 2])[0]
+            offset += 2 + num_ex * 2
+        description = ""
+        note = ""
+        if offset < len(d):
+            rest = d[offset:]
+            parts = rest.split(b"\x00")
+            if len(parts) >= 1:
+                description = parts[0].decode("latin-1", errors="replace")
+            if has_note and len(parts) >= 2:
+                note = parts[1].decode("latin-1", errors="replace")
+        entry = {"date": date, "description": description}
+        if start_time:
+            entry["time"] = f"{start_time} - {end_time}"
+        if note:
+            entry["note"] = note
+        entries.append(entry)
+    return {"kind": "datebook", "name": db.name, "entries": entries}
+
+
+def _preview_todo(db) -> dict:
+    """Parse ToDoDB records.
+
+    Record format:
+    - Bytes 0-1: packed due date (0xFFFF = no date)
+    - Byte 2: priority (1-5)
+    - Then: null-terminated description, optional null-terminated note
+    """
+    entries = []
+    for i, r in enumerate(db.records):
+        d = r.data
+        if len(d) < 3:
+            continue
+        due_date = _palm_date(d, 0)
+        priority = d[2]
+        rest = d[3:]
+        parts = rest.split(b"\x00")
+        description = parts[0].decode("latin-1", errors="replace") if parts else ""
+        note = parts[1].decode("latin-1", errors="replace") if len(parts) > 1 else ""
+        completed = bool(r.attributes & 0x80)
+        entry = {
+            "description": description,
+            "priority": priority,
+            "completed": completed,
+        }
+        if due_date:
+            entry["due"] = due_date
+        if note:
+            entry["note"] = note
+        entries.append(entry)
+    return {"kind": "todo", "name": db.name, "entries": entries}
+
+
+def _preview_address(db) -> dict:
+    """Parse AddressDB records.
+
+    Record format:
+    - Bytes 0-3: phone flags (which phone to show, phone label assignments)
+    - Byte 4: field flags (which fields are present) — actually a bitmask
+    - Then: null-separated field strings in order:
+      Last, First, Company, Phone1-5, Address, City, State, Zip, Country, Title, Custom1-4, Note
+    """
+    entries = []
+    field_names = ["Last", "First", "Company", "Phone1", "Phone2", "Phone3",
+                   "Phone4", "Phone5", "Address", "City", "State", "Zip",
+                   "Country", "Title", "Custom1", "Custom2", "Custom3", "Custom4", "Note"]
+    for i, r in enumerate(db.records):
+        d = r.data
+        if len(d) < 9:
+            continue
+        # Skip phone flags (4 bytes) and field bitmask (4 bytes) + company offset (1 byte)
+        offset = 9
+        fields = d[offset:].split(b"\x00")
+        entry = {}
+        for j, val in enumerate(fields):
+            if j < len(field_names) and val:
+                text = val.decode("latin-1", errors="replace")
+                if text:
+                    entry[field_names[j]] = text
+        if entry:
+            entries.append(entry)
+    return {"kind": "address", "name": db.name, "entries": entries}
 
 
 @app.get("/api/model/{name}")
