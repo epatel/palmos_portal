@@ -2,13 +2,14 @@
 
 ## Overview
 
-A Python CLI tool for reading and writing PalmOS databases (`.pdb`) and applications (`.prc`) to/from a Handspring Visor via its USB cradle. Implements the HotSync protocol stack from scratch on top of `pyserial` for USB-serial transport.
+A Python CLI tool for reading and writing PalmOS databases (`.pdb`) and applications (`.prc`) to/from a Handspring Visor via its USB cradle. Implements the HotSync protocol stack from scratch on top of `PyUSB`/`libusb` for raw USB bulk transfer communication.
 
 ## Target Device
 
 - **Handspring Visor** (all models) connected via USB cradle
-- The Visor's cradle presents as a USB-serial device on macOS
-- Serial port appears as `/dev/tty.usbserial-*` or `/dev/tty.usbmodem-*` when HotSync button is pressed
+- The Visor's cradle uses raw USB bulk transfers (NOT USB-serial)
+- USB Vendor ID: `0x082D`, Product ID: `0x0100`, Full Speed (12 Mb/s)
+- Device enumerates only when HotSync button is pressed (~30 second window)
 
 ## Project Structure
 
@@ -29,28 +30,32 @@ palm_com/
 ## Layer 1: Transport (`transport.py`)
 
 ### Responsibility
-Manage the raw serial connection to the Visor's USB cradle.
+Manage the raw USB bulk transfer connection to the Visor's USB cradle.
 
 ### Interface
 ```python
 class Connection:
-    def open(self, port: str | None = None, baudrate: int = 9600) -> None
+    VENDOR_ID = 0x082D
+    PRODUCT_ID = 0x0100
+
+    def open(self) -> None
     def close(self) -> None
     def read(self, n: int, timeout: float = 5.0) -> bytes
     def write(self, data: bytes) -> None
-    def detect_port(self) -> str
 ```
 
 ### Details
-- **Auto-detection:** Scan `/dev/tty.usb*` ports. The Visor's cradle typically identifies with a known USB vendor/product ID (Handspring: `0x082D`).
-- **Baud rate:** Start at 9600 baud. The Visor may negotiate a higher rate (57600) during the initial handshake — handle rate switching after negotiation.
+- **USB access:** Use `PyUSB` (backed by `libusb`) to find and claim the Visor device by vendor/product ID.
+- **Endpoints:** The Visor exposes two bulk endpoints — one IN and one OUT. Discover these from the device's active configuration/interface descriptor.
+- **Device detection:** `usb.core.find(idVendor=0x082D, idProduct=0x0100)`. Returns `None` if the device isn't on the bus (HotSync not pressed).
+- **Kernel driver:** On macOS, may need to detach any kernel driver that auto-claims the interface (`dev.detach_kernel_driver(0)`).
 - **Timeouts:** Default 5-second read timeout. The Visor has a limited window after pressing HotSync before it times out (~30 seconds).
-- **Context manager:** Support `with Connection() as conn:` for clean open/close.
+- **Context manager:** Support `with Connection() as conn:` for clean open/close, releasing the USB interface on exit.
 
 ## Layer 2: SLP — Serial Link Protocol (`slp.py`)
 
 ### Responsibility
-Packet framing over the raw serial byte stream. Each SLP packet wraps a payload with addressing, type info, and integrity checks.
+Packet framing over the raw USB byte stream. Each SLP packet wraps a payload with addressing, type info, and integrity checks.
 
 ### Packet Format
 ```
@@ -187,7 +192,7 @@ Every CLI operation follows this sequence:
 6. `EndOfSync` — tells device sync is complete
 7. Close serial connection
 
-**Note on CMP:** Before DLP begins, there's a brief CMP exchange where the device and desktop negotiate baud rate and protocol version. This is a simple 2-packet exchange (device sends CMP init, desktop responds with CMP init) handled in `transport.py` as part of connection setup.
+**Note on CMP:** Before DLP begins, there's a brief CMP exchange where the device and desktop negotiate the protocol version. Over USB (unlike serial), baud rate negotiation is not needed — the CMP exchange simply confirms both sides are ready. This is a simple 2-packet exchange handled in `transport.py` as part of connection setup.
 
 ## Layer 5: PDB/PRC File Format (`pdb.py`)
 
@@ -280,7 +285,8 @@ palm sysinfo                     Show device info (OS version, memory, name)
 
 ## Dependencies
 
-- `pyserial` — serial port communication
+- `pyusb` — USB device communication (backed by `libusb`)
+- `libusb` — install via `brew install libusb` on macOS
 - `click` — CLI framework
 - Python 3.10+ (for `match` statements and modern type hints)
 
