@@ -425,6 +425,51 @@ async def backup_all():
     return Response(content="No backup available. Trigger backup first.", status_code=404)
 
 
+@app.get("/api/preview/{name}")
+async def preview_database(name: str):
+    """Return database content for preview (records as text, resources as list)."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        file_bytes, ext = await asyncio.get_event_loop().run_in_executor(
+            None, device_manager.pull_database, name,
+        )
+        db = PalmDatabase.from_bytes(file_bytes)
+
+        # TGL0 3D model
+        if db.creator == "TGL0" and not db.is_resource_db:
+            model = _parse_tgl0_model(db)
+            return {"kind": "model3d", "name": db.name, "data": model}
+
+        # Resource database (.prc) — list resources
+        if db.is_resource_db:
+            resources = []
+            for r in db.resources:
+                resources.append({
+                    "type": r.res_type,
+                    "id": r.res_id,
+                    "size": len(r.data),
+                })
+            return {"kind": "resources", "name": db.name, "type": db.db_type,
+                    "creator": db.creator, "resources": resources}
+
+        # Record database — try to show as text
+        records = []
+        for i, r in enumerate(db.records):
+            try:
+                text = r.data.rstrip(b"\x00").decode("latin-1")
+                if all(c == '\x00' or c.isprintable() or c in '\n\r\t' for c in text):
+                    records.append({"index": i, "text": text, "size": len(r.data)})
+                else:
+                    records.append({"index": i, "hex": r.data[:64].hex(), "size": len(r.data)})
+            except Exception:
+                records.append({"index": i, "hex": r.data[:64].hex(), "size": len(r.data)})
+        return {"kind": "records", "name": db.name, "type": db.db_type,
+                "creator": db.creator, "records": records}
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
+
+
 @app.get("/api/model/{name}")
 async def get_model(name: str):
     """Parse a TGL0 database and return 3D model data as JSON."""

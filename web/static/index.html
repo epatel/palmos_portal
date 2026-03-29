@@ -6,265 +6,295 @@
 <title>Palm-Com Dashboard</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; height: 100vh; display: flex; flex-direction: column; }
 
-  header { background: #2c3e50; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
-  header h1 { font-size: 20px; font-weight: 600; }
-  .status { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-  .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+  header { background: #2c3e50; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .device-label { font-size: 13px; opacity: 0.8; }
+  .status { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
   .status-dot.connected { background: #2ecc71; }
-  .status-dot.waiting { background: #f1c40f; }
+  .status-dot.waiting { background: #f1c40f; animation: pulse 1.5s infinite; }
   .status-dot.disconnected { background: #e74c3c; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-  .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+  .main { display: flex; flex: 1; overflow: hidden; }
 
-  .device-info { background: white; border-radius: 8px; padding: 16px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-  .device-info h2 { font-size: 16px; color: #666; margin-bottom: 4px; }
-  .device-info .details { font-size: 18px; }
+  /* Left panel — database list */
+  .panel-left { width: 340px; min-width: 280px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+  .panel-header { padding: 10px 16px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  .panel-header h2 { font-size: 14px; font-weight: 600; color: #555; }
+  .panel-header .actions { display: flex; gap: 4px; }
+  .panel-header button { padding: 3px 8px; font-size: 11px; }
 
-  .section { background: white; border-radius: 8px; padding: 16px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .section-header h2 { font-size: 16px; }
-  .section-header .actions { display: flex; gap: 8px; }
+  .db-list { flex: 1; overflow-y: auto; }
+  .db-item { padding: 8px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .db-item:hover { background: #f8f9fa; }
+  .db-item.selected { background: #ebf5fb; border-left: 3px solid #3498db; }
+  .db-item-name { font-size: 13px; font-weight: 500; }
+  .db-item-meta { font-size: 11px; color: #999; }
+  .db-item-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s; }
+  .db-item:hover .db-item-actions { opacity: 1; }
+  .db-item-actions button { padding: 2px 6px; font-size: 10px; }
 
-  button { background: #3498db; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  .drop-zone { margin: 8px; padding: 16px; border: 2px dashed #ccc; border-radius: 6px; text-align: center; color: #aaa; font-size: 12px; cursor: pointer; flex-shrink: 0; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #3498db; background: #ebf5fb; color: #3498db; }
+  .drop-zone input { display: none; }
+
+  /* Right panel — content preview */
+  .panel-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .preview-header { padding: 10px 16px; border-bottom: 1px solid #eee; background: white; flex-shrink: 0; }
+  .preview-header h2 { font-size: 14px; font-weight: 600; color: #555; }
+  .preview-header .meta { font-size: 12px; color: #999; margin-top: 2px; }
+  .preview-body { flex: 1; overflow: auto; background: #fafafa; }
+  .preview-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: #bbb; font-size: 14px; }
+  .preview-loading { display: flex; align-items: center; justify-content: center; height: 100%; color: #999; }
+
+  /* Record list */
+  .record-list { padding: 8px; }
+  .record-item { background: white; border: 1px solid #eee; border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; }
+  .record-item .rec-header { font-size: 11px; color: #999; margin-bottom: 4px; }
+  .record-item .rec-text { font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+  .record-item .rec-hex { font-family: monospace; font-size: 11px; color: #666; word-break: break-all; }
+
+  /* Resource list */
+  .resource-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .resource-table th { text-align: left; padding: 6px 14px; border-bottom: 2px solid #eee; color: #666; font-size: 11px; text-transform: uppercase; background: white; position: sticky; top: 0; }
+  .resource-table td { padding: 6px 14px; border-bottom: 1px solid #f0f0f0; }
+
+  /* 3D viewer in preview panel */
+  .preview-3d { width: 100%; height: 100%; }
+  .preview-3d canvas { width: 100% !important; height: 100% !important; }
+
+  .message { padding: 40px; text-align: center; color: #bbb; font-size: 14px; }
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #2c3e50; color: white; padding: 10px 18px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity 0.3s; z-index: 100; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #e74c3c; }
+
+  .progress-bar { background: #ecf0f1; height: 3px; overflow: hidden; flex-shrink: 0; }
+  .progress-bar .fill { background: #3498db; height: 100%; width: 0%; transition: width 0.3s; }
+
+  button { background: #3498db; color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; }
   button:hover { background: #2980b9; }
   button:disabled { background: #bdc3c7; cursor: not-allowed; }
   button.danger { background: #e74c3c; }
   button.danger:hover { background: #c0392b; }
-  button.secondary { background: #95a5a6; }
-  button.secondary:hover { background: #7f8c8d; }
-
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th { text-align: left; padding: 8px; border-bottom: 2px solid #eee; color: #666; font-weight: 600; }
-  td { padding: 8px; border-bottom: 1px solid #eee; }
-  tr:hover td { background: #f8f9fa; }
-  .actions-cell { white-space: nowrap; }
-  .actions-cell button { padding: 3px 8px; font-size: 12px; margin-left: 4px; }
-
-  .drop-zone { border: 2px dashed #bdc3c7; border-radius: 8px; padding: 32px; text-align: center; color: #999; cursor: pointer; transition: all 0.2s; }
-  .drop-zone:hover, .drop-zone.dragover { border-color: #3498db; background: #ebf5fb; color: #3498db; }
-  .drop-zone input { display: none; }
-
-  .message { padding: 12px 24px; text-align: center; color: #999; font-size: 14px; }
-  .toast { position: fixed; bottom: 24px; right: 24px; background: #2c3e50; color: white; padding: 12px 20px; border-radius: 6px; font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 100; }
-  .toast.show { opacity: 1; }
-  .toast.error { background: #e74c3c; }
-
-  .progress-bar { background: #ecf0f1; border-radius: 4px; height: 6px; margin-top: 8px; overflow: hidden; display: none; }
-  .progress-bar .fill { background: #3498db; height: 100%; width: 0%; transition: width 0.3s; }
-
-  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; }
-  .modal-overlay.show { display: flex; align-items: center; justify-content: center; }
-  .modal { background: white; border-radius: 12px; width: 90vw; max-width: 800px; height: 70vh; display: flex; flex-direction: column; overflow: hidden; }
-  .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #eee; }
-  .modal-header h3 { font-size: 16px; }
-  .modal-close { background: none; color: #999; font-size: 24px; padding: 0 8px; border: none; cursor: pointer; }
-  .modal-close:hover { color: #333; background: none; }
-  .modal-body { flex: 1; position: relative; }
-  .modal-body canvas { width: 100% !important; height: 100% !important; }
-  button.view3d { background: #27ae60; }
-  button.view3d:hover { background: #219a52; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Palm-Com Dashboard</h1>
-  <div class="status">
-    <span class="status-dot disconnected" id="statusDot"></span>
-    <span id="statusText">Disconnected</span>
-    <button id="btnDisconnect" class="danger" onclick="send({action:'disconnect'})" style="display:none; margin-left:8px">Disconnect</button>
+  <h1>Palm-Com</h1>
+  <div class="header-right">
+    <span class="device-label" id="deviceLabel"></span>
+    <div class="status">
+      <span class="status-dot disconnected" id="statusDot"></span>
+      <span id="statusText">Disconnected</span>
+    </div>
+    <button id="btnDisconnect" class="danger" onclick="send({action:'disconnect'})" style="display:none">Disconnect</button>
   </div>
 </header>
 
-<div class="container">
-  <div class="device-info" id="deviceInfo" style="display:none">
-    <h2>Device</h2>
-    <div class="details">
-      <span id="deviceName">—</span> &nbsp;·&nbsp; ROM <span id="romVersion">—</span>
-    </div>
-  </div>
+<div class="progress-bar" id="progressBar" style="display:none"><div class="fill" id="progressFill"></div></div>
 
-  <div class="section">
-    <div class="section-header">
+<div class="main">
+  <!-- Left: database list -->
+  <div class="panel-left">
+    <div class="panel-header">
       <h2>Databases <span id="dbCount"></span></h2>
       <div class="actions">
         <button id="btnRefresh" onclick="send({action:'refresh'})" disabled>Refresh</button>
-        <button id="btnBackup" onclick="startBackup()" disabled>Backup All</button>
+        <button id="btnBackup" onclick="startBackup()" disabled>Backup</button>
       </div>
     </div>
-    <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
-    <table id="dbTable" style="display:none">
-      <thead>
-        <tr><th>Name</th><th>Type</th><th>Creator</th><th>Actions</th></tr>
-      </thead>
-      <tbody id="dbBody"></tbody>
-    </table>
-    <div class="message" id="dbMessage">Press HotSync button to connect...</div>
-  </div>
-
-  <div class="section">
+    <div class="db-list" id="dbList">
+      <div class="message" id="dbMessage">Press HotSync to connect</div>
+    </div>
     <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-      Drop .prc / .pdb files here to install<br><small>or click to browse</small>
+      Drop files to install
       <input type="file" id="fileInput" accept=".prc,.pdb,.PRC,.PDB" multiple>
     </div>
   </div>
-</div>
 
-<div class="modal-overlay" id="modelModal">
-  <div class="modal">
-    <div class="modal-header">
-      <h3 id="modelTitle">3D Model</h3>
-      <button class="modal-close" onclick="closeModel()">&times;</button>
+  <!-- Right: content preview -->
+  <div class="panel-right">
+    <div class="preview-header" id="previewHeader" style="display:none">
+      <h2 id="previewName"></h2>
+      <div class="meta" id="previewMeta"></div>
     </div>
-    <div class="modal-body" id="modelContainer"></div>
+    <div class="preview-body" id="previewBody">
+      <div class="preview-placeholder" id="previewPlaceholder">Select a database to preview</div>
+    </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
 <script>
-let ws;
-let isConnected = false;
+let ws, isConnected = false, allDbs = [], selectedDb = null;
+let currentRenderer, currentAnimId;
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
-
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    handle(msg);
-  };
-
-  ws.onclose = () => {
-    setTimeout(connect, 1000);
-  };
+  ws.onmessage = e => handle(JSON.parse(e.data));
+  ws.onclose = () => setTimeout(connect, 1000);
 }
 
 function send(msg) {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(msg));
-  }
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
 
 function handle(msg) {
   switch (msg.type) {
-    case 'status':
-      setStatus(msg.state);
-      break;
+    case 'status': setStatus(msg.state); break;
     case 'sysinfo':
-      document.getElementById('deviceName').textContent = msg.device;
-      document.getElementById('romVersion').textContent = msg.rom_version;
-      document.getElementById('deviceInfo').style.display = '';
+      document.getElementById('deviceLabel').textContent = `${msg.device} ROM ${msg.rom_version}`;
       break;
     case 'db_list':
-      renderDatabases(msg.databases);
+      allDbs = msg.databases;
+      renderDbList();
       break;
-    case 'deleted':
-      toast(`Deleted ${msg.name}`);
-      break;
-    case 'push_done':
-      toast(`Installed ${msg.name}`);
-      break;
-    case 'progress':
-      toast(msg.detail);
-      break;
+    case 'deleted': toast(`Deleted ${msg.name}`); break;
+    case 'push_done': toast(`Installed ${msg.name}`); break;
+    case 'progress': toast(msg.detail); break;
     case 'backup_progress':
-      showProgress(msg.current, msg.total, `Backing up ${msg.name}...`);
+      showProgress(msg.current, msg.total);
+      toast(`Backing up ${msg.name}...`);
       break;
     case 'backup_done':
       hideProgress();
-      toast('Backup complete — downloading...');
+      toast('Backup complete');
       window.location = '/api/backup';
       break;
-    case 'error':
-      toast(msg.message, true);
-      break;
+    case 'error': toast(msg.message, true); break;
   }
 }
 
 function setStatus(state) {
-  const dot = document.getElementById('statusDot');
-  const text = document.getElementById('statusText');
-  dot.className = 'status-dot ' + state;
-  const labels = { connected: 'Connected', waiting: 'Waiting for HotSync...', disconnected: 'Disconnected' };
-  text.textContent = labels[state] || state;
-
+  document.getElementById('statusDot').className = 'status-dot ' + state;
+  const labels = { connected: 'Connected', waiting: 'Waiting...', disconnected: 'Disconnected' };
+  document.getElementById('statusText').textContent = labels[state] || state;
   isConnected = state === 'connected';
   document.getElementById('btnRefresh').disabled = !isConnected;
   document.getElementById('btnBackup').disabled = !isConnected;
   document.getElementById('btnDisconnect').style.display = isConnected ? '' : 'none';
-
-  if (state === 'waiting') {
-    document.getElementById('dbMessage').textContent = 'Press HotSync button to connect...';
+  if (!isConnected) {
+    document.getElementById('deviceLabel').textContent = '';
+    document.getElementById('dbMessage').textContent = state === 'waiting' ? 'Press HotSync to connect' : 'Disconnected';
     document.getElementById('dbMessage').style.display = '';
-    document.getElementById('dbTable').style.display = 'none';
-    document.getElementById('deviceInfo').style.display = 'none';
-  } else if (state === 'disconnected') {
-    document.getElementById('dbMessage').textContent = 'Device disconnected';
-    document.getElementById('dbMessage').style.display = '';
-    document.getElementById('dbTable').style.display = 'none';
-    document.getElementById('deviceInfo').style.display = 'none';
+    document.getElementById('dbList').querySelectorAll('.db-item').forEach(el => el.remove());
+    document.getElementById('dbCount').textContent = '';
+    clearPreview();
   }
 }
 
-function renderDatabases(dbs) {
-  const body = document.getElementById('dbBody');
-  body.innerHTML = '';
-  dbs.forEach(db => {
-    const tr = document.createElement('tr');
-    const isTGL = db.creator === 'TGL0' && !db.is_resource;
-    tr.innerHTML = `
-      <td>${esc(db.name)}</td>
-      <td>${esc(db.db_type)}</td>
-      <td>${esc(db.creator)}</td>
-      <td class="actions-cell">
-        ${isTGL ? `<button class="view3d" onclick="viewModel('${esc(db.name)}')">3D</button>` : ''}
-        <button onclick="pullDb('${esc(db.name)}')">Download</button>
-        <button class="danger" onclick="deleteDb('${esc(db.name)}')">Delete</button>
-      </td>`;
-    body.appendChild(tr);
+function renderDbList() {
+  const list = document.getElementById('dbList');
+  const msg = document.getElementById('dbMessage');
+  // Remove old items
+  list.querySelectorAll('.db-item').forEach(el => el.remove());
+  msg.style.display = allDbs.length ? 'none' : '';
+
+  allDbs.forEach(db => {
+    const div = document.createElement('div');
+    div.className = 'db-item' + (selectedDb === db.name ? ' selected' : '');
+    div.onclick = () => selectDb(db.name);
+    div.innerHTML = `
+      <div>
+        <div class="db-item-name">${esc(db.name)}</div>
+        <div class="db-item-meta">${esc(db.db_type)} / ${esc(db.creator)}${db.is_resource ? ' (app)' : ''}</div>
+      </div>
+      <div class="db-item-actions">
+        <button onclick="event.stopPropagation(); pullDb('${esc(db.name)}')">DL</button>
+        <button class="danger" onclick="event.stopPropagation(); deleteDb('${esc(db.name)}')">Del</button>
+      </div>`;
+    list.appendChild(div);
   });
-  document.getElementById('dbCount').textContent = `(${dbs.length})`;
-  document.getElementById('dbTable').style.display = '';
-  document.getElementById('dbMessage').style.display = 'none';
+  document.getElementById('dbCount').textContent = `(${allDbs.length})`;
 }
 
-function pullDb(name) {
-  window.location = '/api/pull/' + encodeURIComponent(name);
+function selectDb(name) {
+  selectedDb = name;
+  renderDbList();
+  loadPreview(name);
 }
 
-function deleteDb(name) {
-  if (confirm(`Delete "${name}" from device?`)) {
-    send({ action: 'delete', name: name });
+function loadPreview(name) {
+  const body = document.getElementById('previewBody');
+  const header = document.getElementById('previewHeader');
+  cleanupViewer();
+  body.innerHTML = '<div class="preview-loading">Loading...</div>';
+  header.style.display = 'none';
+
+  fetch('/api/preview/' + encodeURIComponent(name))
+    .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
+    .then(data => renderPreview(data))
+    .catch(e => { body.innerHTML = `<div class="preview-placeholder">Could not load preview</div>`; });
+}
+
+function renderPreview(data) {
+  const body = document.getElementById('previewBody');
+  const header = document.getElementById('previewHeader');
+  header.style.display = '';
+  document.getElementById('previewName').textContent = data.name;
+
+  if (data.kind === 'model3d') {
+    document.getElementById('previewMeta').textContent = `3D Model - ${data.data.num_vertices} vertices, ${data.data.num_strips} strips`;
+    body.innerHTML = '<div class="preview-3d" id="viewer3d"></div>';
+    initViewer(data.data, document.getElementById('viewer3d'));
+  } else if (data.kind === 'records') {
+    document.getElementById('previewMeta').textContent = `${data.type} / ${data.creator} - ${data.records.length} records`;
+    let html = '<div class="record-list">';
+    data.records.forEach(r => {
+      html += `<div class="record-item">
+        <div class="rec-header">Record ${r.index} (${r.size} bytes)</div>`;
+      if (r.text !== undefined) {
+        html += `<div class="rec-text">${esc(r.text)}</div>`;
+      } else {
+        html += `<div class="rec-hex">${r.hex}${r.size > 64 ? '...' : ''}</div>`;
+      }
+      html += `</div>`;
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  } else if (data.kind === 'resources') {
+    document.getElementById('previewMeta').textContent = `${data.type} / ${data.creator} - ${data.resources.length} resources`;
+    let html = '<table class="resource-table"><thead><tr><th>Type</th><th>ID</th><th>Size</th></tr></thead><tbody>';
+    data.resources.forEach(r => {
+      html += `<tr><td>${esc(r.type)}</td><td>${r.id}</td><td>${r.size}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    body.innerHTML = html;
   }
 }
 
-function startBackup() {
-  send({ action: 'backup' });
-  showProgress(0, 1, 'Starting backup...');
+function clearPreview() {
+  cleanupViewer();
+  document.getElementById('previewHeader').style.display = 'none';
+  document.getElementById('previewBody').innerHTML = '<div class="preview-placeholder">Select a database to preview</div>';
+  selectedDb = null;
 }
 
-function showProgress(current, total, label) {
-  const bar = document.getElementById('progressBar');
-  const fill = document.getElementById('progressFill');
-  bar.style.display = '';
-  fill.style.width = (current / total * 100) + '%';
+function pullDb(name) { window.location = '/api/pull/' + encodeURIComponent(name); }
+function deleteDb(name) {
+  if (confirm(`Delete "${name}"?`)) {
+    send({ action: 'delete', name });
+    if (selectedDb === name) clearPreview();
+  }
 }
-
+function startBackup() { send({ action: 'backup' }); showProgress(0, 1); }
+function showProgress(cur, tot) {
+  document.getElementById('progressBar').style.display = '';
+  document.getElementById('progressFill').style.width = (cur/tot*100)+'%';
+}
 function hideProgress() {
   document.getElementById('progressBar').style.display = 'none';
   document.getElementById('progressFill').style.width = '0%';
 }
 
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 let toastTimer;
 function toast(msg, isError) {
@@ -278,19 +308,10 @@ function toast(msg, isError) {
 // File upload
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
-
-dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropZone.classList.remove('dragover');
-  uploadFiles(e.dataTransfer.files);
-});
-fileInput.addEventListener('change', () => {
-  uploadFiles(fileInput.files);
-  fileInput.value = '';
-});
-
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); uploadFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', () => { uploadFiles(fileInput.files); fileInput.value = ''; });
 function uploadFiles(files) {
   for (const file of files) {
     const form = new FormData();
@@ -302,130 +323,59 @@ function uploadFiles(files) {
   }
 }
 
-// 3D Model Viewer
-let currentRenderer, currentScene, currentCamera, currentAnimId;
-
-function viewModel(name) {
-  toast('Loading 3D model...');
-  fetch('/api/model/' + encodeURIComponent(name))
-    .then(r => { if (!r.ok) throw new Error('Failed to load'); return r.json(); })
-    .then(data => showModel(data))
-    .catch(e => toast(e.message, true));
+// 3D Viewer (inline in preview panel)
+function cleanupViewer() {
+  if (currentAnimId) { cancelAnimationFrame(currentAnimId); currentAnimId = null; }
+  if (currentRenderer) { currentRenderer.dispose(); currentRenderer = null; }
 }
 
-function showModel(data) {
-  document.getElementById('modelTitle').textContent = data.name;
-  const modal = document.getElementById('modelModal');
-  const container = document.getElementById('modelContainer');
-  container.innerHTML = '';
-  modal.classList.add('show');
-
-  const w = container.clientWidth;
-  const h = container.clientHeight;
-
+function initViewer(data, container) {
+  const w = container.clientWidth, h = container.clientHeight;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1a1a2e);
-
-  const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+  const camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 100);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(w, h);
   renderer.setPixelRatio(window.devicePixelRatio);
   container.appendChild(renderer.domElement);
 
-  // Build non-indexed geometry for flat shading (one triangle group per strip)
   const positions = [];
-  data.triangles.forEach(t => {
-    for (const idx of t) {
-      const v = data.vertices[idx];
-      positions.push(v[0], v[1], v[2]);
-    }
-  });
-
+  data.triangles.forEach(t => { for (const idx of t) { const v = data.vertices[idx]; positions.push(v[0], v[1], v[2]); } });
   const geom = new THREE.BufferGeometry();
   geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geom.computeVertexNormals();
-
-  // Center the model
   geom.computeBoundingBox();
-  const center = new THREE.Vector3();
-  geom.boundingBox.getCenter(center);
+  const center = new THREE.Vector3(); geom.boundingBox.getCenter(center);
   geom.translate(-center.x, -center.y, -center.z);
-  const size = new THREE.Vector3();
-  geom.boundingBox.getSize(size);
+  const size = new THREE.Vector3(); geom.boundingBox.getSize(size);
   const maxDim = Math.max(size.x, size.y, size.z);
 
-  // Solid mesh with flat shading
-  const mat = new THREE.MeshPhongMaterial({
-    color: 0x4a90d9,
-    specular: 0x222222,
-    shininess: 40,
-    flatShading: true,
-    side: THREE.DoubleSide,
-  });
-  scene.add(new THREE.Mesh(geom, mat));
-
-  // Wireframe overlay
-  const wireMat = new THREE.MeshBasicMaterial({
-    color: 0x88bbff,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.15,
-  });
-  scene.add(new THREE.Mesh(geom, wireMat));
-
-  // Lights
+  scene.add(new THREE.Mesh(geom, new THREE.MeshPhongMaterial({ color: 0x4a90d9, specular: 0x222222, shininess: 40, flatShading: true, side: THREE.DoubleSide })));
+  scene.add(new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color: 0x88bbff, wireframe: true, transparent: true, opacity: 0.15 })));
   scene.add(new THREE.AmbientLight(0x404040));
-  const light1 = new THREE.DirectionalLight(0xffffff, 0.8);
-  light1.position.set(5, 5, 5);
-  scene.add(light1);
-  const light2 = new THREE.DirectionalLight(0x8888ff, 0.4);
-  light2.position.set(-5, -3, -5);
-  scene.add(light2);
+  const l1 = new THREE.DirectionalLight(0xffffff, 0.8); l1.position.set(5,5,5); scene.add(l1);
+  const l2 = new THREE.DirectionalLight(0x8888ff, 0.4); l2.position.set(-5,-3,-5); scene.add(l2);
+  camera.position.set(0, maxDim*0.5, maxDim*2); camera.lookAt(0,0,0);
 
-  camera.position.set(0, maxDim * 0.5, maxDim * 2);
-  camera.lookAt(0, 0, 0);
-
-  // Mouse rotation
-  let isDragging = false, prevX, prevY, rotX = 0, rotY = 0;
-  renderer.domElement.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
-  window.addEventListener('mouseup', () => isDragging = false);
+  let drag=false, px, py, rx=0, ry=0;
+  renderer.domElement.addEventListener('mousedown', e => { drag=true; px=e.clientX; py=e.clientY; });
+  window.addEventListener('mouseup', () => drag=false);
   renderer.domElement.addEventListener('mousemove', e => {
-    if (!isDragging) return;
-    rotY += (e.clientX - prevX) * 0.01;
-    rotX += (e.clientY - prevY) * 0.01;
-    rotX = Math.max(-Math.PI/2, Math.min(Math.PI/2, rotX));
-    prevX = e.clientX; prevY = e.clientY;
+    if (!drag) return;
+    ry += (e.clientX-px)*0.01; rx += (e.clientY-py)*0.01;
+    rx = Math.max(-Math.PI/2, Math.min(Math.PI/2, rx));
+    px=e.clientX; py=e.clientY;
   });
-  // Scroll zoom
-  renderer.domElement.addEventListener('wheel', e => {
-    e.preventDefault();
-    camera.position.multiplyScalar(e.deltaY > 0 ? 1.1 : 0.9);
-  }, { passive: false });
+  renderer.domElement.addEventListener('wheel', e => { e.preventDefault(); camera.position.multiplyScalar(e.deltaY>0?1.1:0.9); }, {passive:false});
 
   currentRenderer = renderer;
-  currentScene = scene;
-  currentCamera = camera;
-
-  function animate() {
+  (function animate() {
     currentAnimId = requestAnimationFrame(animate);
-    // Apply rotation
-    const dist = camera.position.length();
-    camera.position.set(
-      dist * Math.sin(rotY) * Math.cos(rotX),
-      dist * Math.sin(rotX),
-      dist * Math.cos(rotY) * Math.cos(rotX)
-    );
-    camera.lookAt(0, 0, 0);
+    const d = camera.position.length();
+    camera.position.set(d*Math.sin(ry)*Math.cos(rx), d*Math.sin(rx), d*Math.cos(ry)*Math.cos(rx));
+    camera.lookAt(0,0,0);
     renderer.render(scene, camera);
-  }
-  animate();
-}
-
-function closeModel() {
-  document.getElementById('modelModal').classList.remove('show');
-  if (currentAnimId) cancelAnimationFrame(currentAnimId);
-  if (currentRenderer) currentRenderer.dispose();
-  document.getElementById('modelContainer').innerHTML = '';
+  })();
 }
 
 connect();
