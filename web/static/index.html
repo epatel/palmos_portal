@@ -270,17 +270,25 @@ function renderPreview(data) {
     html += '</tbody></table></div></div>';
     body.innerHTML = html;
   } else if (data.kind === 'memos') {
-    document.getElementById('previewMeta').textContent = `${data.entries.length} memos`;
+    window._memoDbName = data.name;
+    document.getElementById('previewMeta').innerHTML = `${data.entries.length} memos <button onclick="newMemo()" style="margin-left:8px">+ New Memo</button>`;
     let html = '<div class="record-list">';
     data.entries.forEach((m, i) => {
       const full = m.title + (m.body ? '\n' + m.body : '');
       html += `<div class="record-item" id="memo-${i}">
-        <div class="rec-header">${esc(m.title)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:start">
+          <div class="rec-header" style="flex:1">${esc(m.title)}</div>
+          <div style="display:flex;gap:4px;opacity:0.4" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">
+            ${i > 0 ? `<button style="padding:1px 6px;font-size:11px" onclick="moveMemo(${m.index}, ${i}, ${i-1})">&#9650;</button>` : ''}
+            ${i < data.entries.length-1 ? `<button style="padding:1px 6px;font-size:11px" onclick="moveMemo(${m.index}, ${i}, ${i+1})">&#9660;</button>` : ''}
+            <button class="danger" style="padding:1px 6px;font-size:11px" onclick="deleteMemo(${m.index})">&#10005;</button>
+          </div>
+        </div>
         <div class="rec-text memo-view" onclick="editMemo(${i}, this)">${esc(m.body)}</div>
-        <textarea class="memo-edit" style="display:none" data-index="${i}">${esc(full)}</textarea>
+        <textarea class="memo-edit" style="display:none" data-index="${m.index}">${esc(full)}</textarea>
         <div class="rec-actions" style="display:none">
           <button class="secondary" onclick="cancelMemo(${i})">Cancel</button>
-          <button onclick="saveMemo('${esc(data.name)}', ${i})">Save</button>
+          <button onclick="saveMemo('${esc(data.name)}', ${m.index}, ${i})">Save</button>
         </div></div>`;
     });
     body.innerHTML = html + '</div>';
@@ -445,17 +453,48 @@ function cancelMemo(idx) {
   item.querySelector('.rec-actions').style.display = 'none';
 }
 
-function saveMemo(dbName, idx) {
-  const item = document.getElementById('memo-' + idx);
+function saveMemo(dbName, recIndex, uiIndex) {
+  const item = document.getElementById('memo-' + uiIndex);
   const text = item.querySelector('.memo-edit').value;
   toast('Saving...');
-  fetch('/api/edit/' + encodeURIComponent(dbName) + '/' + idx, {
+  fetch('/api/edit/' + encodeURIComponent(dbName) + '/' + recIndex, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ text: text })
   })
   .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
   .then(() => { toast('Saved'); loadPreview(dbName); })
+  .catch(e => toast(e.message, true));
+}
+
+function newMemo() {
+  const text = prompt('New memo text:');
+  if (text === null) return;
+  toast('Creating...');
+  fetch('/api/new-record/' + encodeURIComponent(window._memoDbName), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ text: text })
+  })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Created'); loadPreview(window._memoDbName); })
+  .catch(e => toast(e.message, true));
+}
+
+function deleteMemo(recIndex) {
+  if (!confirm('Delete this memo?')) return;
+  toast('Deleting...');
+  fetch('/api/record/' + encodeURIComponent(window._memoDbName) + '/' + recIndex, { method: 'DELETE' })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Deleted'); loadPreview(window._memoDbName); })
+  .catch(e => toast(e.message, true));
+}
+
+function moveMemo(recIndex, fromUI, toUI) {
+  toast('Moving...');
+  fetch('/api/move-record/' + encodeURIComponent(window._memoDbName) + '/' + fromUI + '/' + toUI, { method: 'POST' })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Moved'); loadPreview(window._memoDbName); })
   .catch(e => toast(e.message, true));
 }
 

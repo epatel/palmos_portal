@@ -512,6 +512,95 @@ async def edit_todo(name: str, index: int, req: TodoEditRequest):
         return Response(content=str(e), status_code=500)
 
 
+class NewMemoRequest(BaseModel):
+    text: str
+
+@app.post("/api/new-record/{name}")
+async def new_record(name: str, req: NewMemoRequest):
+    """Create a new record in a database."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        def _do_create():
+            from palm.dlp import DB_MODE_READ_WRITE, Record as DLPRecord
+            with device_manager._dlp_lock:
+                dlp = device_manager.dlp
+                handle = dlp.open_db(name, DB_MODE_READ_WRITE)
+                try:
+                    new_data = req.text.encode("cp1252", errors="replace") + b"\x00"
+                    dlp.write_record(handle, DLPRecord(
+                        index=0, attributes=0, unique_id=0, data=new_data,
+                    ))
+                finally:
+                    dlp.close_db(handle)
+        await asyncio.get_event_loop().run_in_executor(None, _do_create)
+        return {"status": "ok"}
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
+
+
+@app.delete("/api/record/{name}/{index}")
+async def delete_record(name: str, index: int):
+    """Delete a record from a database by index."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        def _do_delete():
+            from palm.dlp import DB_MODE_READ_WRITE, DLPFuncID, DLPArg
+            with device_manager._dlp_lock:
+                dlp = device_manager.dlp
+                handle = dlp.open_db(name, DB_MODE_READ_WRITE)
+                try:
+                    rec = dlp.read_record(handle, index)
+                    # DeleteRecord: handle(1) + flags(1) + recID(4)
+                    arg_data = struct.pack(">BBI", handle, 0, rec.unique_id)
+                    dlp._execute(DLPFuncID.DELETE_RECORD, [DLPArg(arg_id=0x20, data=arg_data)])
+                finally:
+                    dlp.close_db(handle)
+        await asyncio.get_event_loop().run_in_executor(None, _do_delete)
+        return {"status": "ok"}
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
+
+
+@app.post("/api/move-record/{name}/{from_idx}/{to_idx}")
+async def move_record(name: str, from_idx: int, to_idx: int):
+    """Move a record by deleting and re-inserting."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        def _do_move():
+            from palm.dlp import DB_MODE_READ_WRITE, Record as DLPRecord, DLPFuncID, DLPArg
+            with device_manager._dlp_lock:
+                dlp = device_manager.dlp
+                # Read all records, reorder, rewrite
+                handle = dlp.open_db(name, DB_MODE_READ_WRITE)
+                try:
+                    num = dlp.read_open_db_info(handle)
+                    records = []
+                    for i in range(num):
+                        records.append(dlp.read_record(handle, i))
+                    # Delete all
+                    for rec in records:
+                        arg_data = struct.pack(">BBI", handle, 0, rec.unique_id)
+                        dlp._execute(DLPFuncID.DELETE_RECORD, [DLPArg(arg_id=0x20, data=arg_data)])
+                    # Reorder
+                    item = records.pop(from_idx)
+                    records.insert(to_idx, item)
+                    # Rewrite
+                    for rec in records:
+                        dlp.write_record(handle, DLPRecord(
+                            index=0, attributes=rec.attributes & 0x0F,
+                            unique_id=0, data=rec.data,
+                        ))
+                finally:
+                    dlp.close_db(handle)
+        await asyncio.get_event_loop().run_in_executor(None, _do_move)
+        return {"status": "ok"}
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
+
+
 @app.get("/api/preview/{name}")
 async def preview_database(name: str):
     """Return database content for preview (records as text, resources as list)."""
@@ -625,6 +714,7 @@ def _preview_memo(db) -> dict:
         text = r.data.rstrip(b"\x00").decode("cp1252", errors="replace")
         lines = text.split("\n", 1)
         entries.append({
+            "index": i,
             "title": lines[0] if lines else "",
             "body": lines[1].strip() if len(lines) > 1 else "",
         })
