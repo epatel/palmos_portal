@@ -90,7 +90,7 @@ class Connection:
             )
             logger.info(f"Visor connection info: {bytes(ret).hex()}")
         except usb.core.USBError as e:
-            logger.warning(f"GET_CONNECTION_INFORMATION failed: {e}")
+            raise ConnectionError(f"Device not ready: {e}") from e
 
         # REQUEST_BYTES: tell the device we're ready to receive
         try:
