@@ -84,6 +84,14 @@
   button:disabled { background: #bdc3c7; cursor: not-allowed; }
   button.danger { background: #e74c3c; }
   button.danger:hover { background: #c0392b; }
+
+  .dialog-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:300; }
+  .dialog-overlay.show { display:flex; align-items:center; justify-content:center; }
+  .dialog { background:white; border-radius:8px; padding:20px; width:90vw; max-width:500px; }
+  .dialog h3 { margin-bottom:12px; font-size:16px; }
+  .dialog textarea { width:100%; min-height:150px; font-size:15px; line-height:1.5; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:inherit; resize:vertical; }
+  .dialog textarea:focus { outline:none; border-color:#3498db; }
+  .dialog .dialog-actions { margin-top:12px; display:flex; gap:8px; justify-content:flex-end; }
 </style>
 </head>
 <body>
@@ -129,6 +137,17 @@
     </div>
     <div class="preview-body" id="previewBody">
       <div class="preview-placeholder" id="previewPlaceholder">Select a database to preview</div>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-overlay" id="memoDialog">
+  <div class="dialog">
+    <h3 id="memoDialogTitle">New Memo</h3>
+    <textarea id="memoDialogText" placeholder="Enter memo text..."></textarea>
+    <div class="dialog-actions">
+      <button class="secondary" onclick="closeMemoDialog()">Cancel</button>
+      <button onclick="submitMemoDialog()">Save</button>
     </div>
   </div>
 </div>
@@ -271,25 +290,22 @@ function renderPreview(data) {
     body.innerHTML = html;
   } else if (data.kind === 'memos') {
     window._memoDbName = data.name;
+    window._memoData = data.entries;
     document.getElementById('previewMeta').innerHTML = `${data.entries.length} memos <button onclick="newMemo()" style="margin-left:8px">+ New Memo</button>`;
     let html = '<div class="record-list">';
     data.entries.forEach((m, i) => {
       const full = m.title + (m.body ? '\n' + m.body : '');
       html += `<div class="record-item" id="memo-${i}">
         <div style="display:flex;justify-content:space-between;align-items:start">
-          <div class="rec-header" style="flex:1">${esc(m.title)}</div>
+          <div class="rec-header" style="flex:1;cursor:pointer" onclick="openMemoEditor(${i})">${esc(m.title)}</div>
           <div style="display:flex;gap:4px;opacity:0.4" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">
-            ${i > 0 ? `<button style="padding:1px 6px;font-size:11px" onclick="moveMemo(${m.index}, ${i}, ${i-1})">&#9650;</button>` : ''}
-            ${i < data.entries.length-1 ? `<button style="padding:1px 6px;font-size:11px" onclick="moveMemo(${m.index}, ${i}, ${i+1})">&#9660;</button>` : ''}
-            <button class="danger" style="padding:1px 6px;font-size:11px" onclick="deleteMemo(${m.index})">&#10005;</button>
+            ${i > 0 ? `<button style="padding:1px 6px;font-size:11px" onclick="event.stopPropagation();moveMemo(${m.index}, ${i}, ${i-1})">&#9650;</button>` : ''}
+            ${i < data.entries.length-1 ? `<button style="padding:1px 6px;font-size:11px" onclick="event.stopPropagation();moveMemo(${m.index}, ${i}, ${i+1})">&#9660;</button>` : ''}
+            <button class="danger" style="padding:1px 6px;font-size:11px" onclick="event.stopPropagation();deleteMemo(${m.index})">&#10005;</button>
           </div>
         </div>
-        <div class="rec-text memo-view" onclick="editMemo(${i}, this)">${esc(m.body)}</div>
-        <textarea class="memo-edit" style="display:none" data-index="${m.index}">${esc(full)}</textarea>
-        <div class="rec-actions" style="display:none">
-          <button class="secondary" onclick="cancelMemo(${i})">Cancel</button>
-          <button onclick="saveMemo('${esc(data.name)}', ${m.index}, ${i})">Save</button>
-        </div></div>`;
+        <div class="rec-text" style="cursor:pointer" onclick="openMemoEditor(${i})">${esc(m.body || '(click to edit)')}</div>
+      </div>`;
     });
     body.innerHTML = html + '</div>';
   } else if (data.kind === 'datebook') {
@@ -433,52 +449,59 @@ function uploadFiles(files) {
   }
 }
 
-// Memo editing
-function editMemo(idx, el) {
-  const item = document.getElementById('memo-' + idx);
-  item.querySelector('.memo-view').style.display = 'none';
-  item.querySelector('.rec-header').style.display = 'none';
-  const ta = item.querySelector('.memo-edit');
-  ta.style.display = '';
-  ta.style.height = Math.max(120, ta.scrollHeight) + 'px';
+// Memo editing via dialog
+let _memoEditIndex = null; // null = new, number = edit existing
+
+function openMemoEditor(uiIdx) {
+  const m = window._memoData[uiIdx];
+  _memoEditIndex = m.index;
+  document.getElementById('memoDialogTitle').textContent = 'Edit Memo';
+  const ta = document.getElementById('memoDialogText');
+  ta.value = m.title + (m.body ? '\n' + m.body : '');
+  document.getElementById('memoDialog').classList.add('show');
   ta.focus();
-  item.querySelector('.rec-actions').style.display = '';
-}
-
-function cancelMemo(idx) {
-  const item = document.getElementById('memo-' + idx);
-  item.querySelector('.memo-view').style.display = '';
-  item.querySelector('.rec-header').style.display = '';
-  item.querySelector('.memo-edit').style.display = 'none';
-  item.querySelector('.rec-actions').style.display = 'none';
-}
-
-function saveMemo(dbName, recIndex, uiIndex) {
-  const item = document.getElementById('memo-' + uiIndex);
-  const text = item.querySelector('.memo-edit').value;
-  toast('Saving...');
-  fetch('/api/edit/' + encodeURIComponent(dbName) + '/' + recIndex, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ text: text })
-  })
-  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
-  .then(() => { toast('Saved'); loadPreview(dbName); })
-  .catch(e => toast(e.message, true));
 }
 
 function newMemo() {
-  const text = prompt('New memo text:');
-  if (text === null) return;
-  toast('Creating...');
-  fetch('/api/new-record/' + encodeURIComponent(window._memoDbName), {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ text: text })
-  })
-  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
-  .then(() => { toast('Created'); loadPreview(window._memoDbName); })
-  .catch(e => toast(e.message, true));
+  _memoEditIndex = null;
+  document.getElementById('memoDialogTitle').textContent = 'New Memo';
+  const ta = document.getElementById('memoDialogText');
+  ta.value = '';
+  document.getElementById('memoDialog').classList.add('show');
+  ta.focus();
+}
+
+function closeMemoDialog() {
+  document.getElementById('memoDialog').classList.remove('show');
+}
+
+function submitMemoDialog() {
+  const text = document.getElementById('memoDialogText').value;
+  if (!text.trim()) { toast('Memo cannot be empty', true); return; }
+  closeMemoDialog();
+  toast('Saving...');
+
+  if (_memoEditIndex !== null) {
+    // Edit existing
+    fetch('/api/edit/' + encodeURIComponent(window._memoDbName) + '/' + _memoEditIndex, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ text })
+    })
+    .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+    .then(() => { toast('Saved'); loadPreview(window._memoDbName); })
+    .catch(e => toast(e.message, true));
+  } else {
+    // Create new
+    fetch('/api/new-record/' + encodeURIComponent(window._memoDbName), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ text })
+    })
+    .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+    .then(() => { toast('Created'); loadPreview(window._memoDbName); })
+    .catch(e => toast(e.message, true));
+  }
 }
 
 function deleteMemo(recIndex) {
