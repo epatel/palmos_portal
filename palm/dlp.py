@@ -74,9 +74,11 @@ class DLPFuncID(IntEnum):
     WRITE_SORT_BLOCK = 0x1E
     READ_RECORD = 0x20
     WRITE_RECORD = 0x21
-    READ_RESOURCE = 0x22
-    WRITE_RESOURCE = 0x23
-    READ_OPEN_DB_INFO = 0x28
+    DELETE_RECORD = 0x22
+    READ_RESOURCE = 0x23
+    WRITE_RESOURCE = 0x24
+    DELETE_RESOURCE = 0x25
+    READ_OPEN_DB_INFO = 0x2B
     OPEN_CONDUIT = 0x2E
     END_OF_SYNC = 0x2F
 
@@ -377,8 +379,9 @@ class DLPClient:
         raise DLPException(DLPFuncID.READ_OPEN_DB_INFO, DLPError.SYSTEM)
 
     def read_record(self, handle: int, index: int) -> Record:
-        arg_data = struct.pack(">BHHH", handle, index, 0, 0xFFFF)
-        arg = DLPArg(arg_id=0x20, data=arg_data)
+        # arg: handle(B) + padding(B) + index(H) + offset(H) + max_len(H)
+        arg_data = struct.pack(">BBHHH", handle, 0x00, index, 0, 0xFFFF)
+        arg = DLPArg(arg_id=0x21, data=arg_data)
         resp_args = self._execute(DLPFuncID.READ_RECORD, [arg])
         if not resp_args:
             raise DLPException(DLPFuncID.READ_RECORD, DLPError.SYSTEM)
@@ -402,13 +405,14 @@ class DLPClient:
         self._execute(DLPFuncID.WRITE_RECORD, [arg])
 
     def read_resource(self, handle: int, index: int) -> Resource:
-        arg_data = struct.pack(">BHHH", handle, index, 0, 0xFFFF)
+        # arg: handle(B) + padding(B) + index(H) + offset(H) + max_len(H)
+        arg_data = struct.pack(">BBHHH", handle, 0x00, index, 0, 0xFFFF)
         arg = DLPArg(arg_id=0x20, data=arg_data)
         resp_args = self._execute(DLPFuncID.READ_RESOURCE, [arg])
         if not resp_args:
             raise DLPException(DLPFuncID.READ_RESOURCE, DLPError.SYSTEM)
         rdata = resp_args[0].data
-        res_type = rdata[0:4]
+        res_type = rdata[0:4].decode("latin-1")
         res_id = struct.unpack_from(">H", rdata, 4)[0]
         res_index = struct.unpack_from(">H", rdata, 6)[0]
         size = struct.unpack_from(">H", rdata, 8)[0]

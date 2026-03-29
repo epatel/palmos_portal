@@ -300,15 +300,24 @@ class PalmDatabase:
                 creator=creator,
             )
 
-            # Read app info
-            app_info = dlp.read_app_block(handle)
-            if app_info:
-                db.app_info = app_info
+            # Read app info (may not exist for all databases)
+            from palm.dlp import DLPException, DLPError
+            try:
+                app_info = dlp.read_app_block(handle)
+                if app_info:
+                    db.app_info = app_info
+            except DLPException as e:
+                if e.error_code != DLPError.NOT_FOUND:
+                    raise
 
-            # Read sort info
-            sort_info = dlp.read_sort_block(handle)
-            if sort_info:
-                db.sort_info = sort_info
+            # Read sort info (may not exist for all databases)
+            try:
+                sort_info = dlp.read_sort_block(handle)
+                if sort_info:
+                    db.sort_info = sort_info
+            except DLPException as e:
+                if e.error_code != DLPError.NOT_FOUND:
+                    raise
 
             # Read records or resources
             for i in range(num_items):
