@@ -102,7 +102,7 @@ class Connection:
             num_bytes = struct.unpack("<H", bytes(ret)[:2])[0] if len(ret) >= 2 else 0
             logger.info(f"Visor ready, {num_bytes} bytes pending")
         except usb.core.USBError as e:
-            logger.warning(f"REQUEST_BYTES failed: {e}")
+            pass  # Not supported on all Visor models
 
     def close(self) -> None:
         if self._dev is not None:
