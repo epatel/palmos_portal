@@ -330,14 +330,17 @@ function showModel(data) {
   renderer.setPixelRatio(window.devicePixelRatio);
   container.appendChild(renderer.domElement);
 
-  // Build geometry from vertices and triangles
-  const geom = new THREE.BufferGeometry();
-  const verts = new Float32Array(data.vertices.flat());
-  geom.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  // Build non-indexed geometry for flat shading (one triangle group per strip)
+  const positions = [];
+  data.triangles.forEach(t => {
+    for (const idx of t) {
+      const v = data.vertices[idx];
+      positions.push(v[0], v[1], v[2]);
+    }
+  });
 
-  const indices = [];
-  data.triangles.forEach(t => indices.push(t[0], t[1], t[2]));
-  geom.setIndex(indices);
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geom.computeVertexNormals();
 
   // Center the model
@@ -349,11 +352,12 @@ function showModel(data) {
   geom.boundingBox.getSize(size);
   const maxDim = Math.max(size.x, size.y, size.z);
 
-  // Solid mesh
+  // Solid mesh with flat shading
   const mat = new THREE.MeshPhongMaterial({
     color: 0x4a90d9,
     specular: 0x222222,
     shininess: 40,
+    flatShading: true,
     side: THREE.DoubleSide,
   });
   scene.add(new THREE.Mesh(geom, mat));
