@@ -188,14 +188,20 @@ class DLPClient:
         for arg in args:
             data = arg.data
             size = len(data)
-            if size <= 255:
-                # Small arg: 1-byte ID (masked 0x3F), 1-byte size
+            if size < 256:
+                # Tiny arg: 1-byte ID (with FLAG_TINY=0x00), 1-byte size
                 body += bytes([arg.arg_id & 0x3F, size])
+                body += data
+            elif size < 65536:
+                # Short arg: 1-byte ID (with FLAG_SHORT=0x80), pad, 2-byte size
+                body += bytes([(arg.arg_id & 0x3F) | 0x80, 0x00])
+                body += struct.pack(">H", size)
+                body += data
             else:
-                # Long arg: 2-byte ID with 0x8000 OR'd, 2-byte size
-                long_id = (arg.arg_id & 0x3FFF) | 0x8000
-                body += struct.pack(">HH", long_id, size)
-            body += data
+                # Long arg: 1-byte ID (with FLAG_LONG=0x40), pad, 4-byte size
+                body += bytes([(arg.arg_id & 0x3F) | 0x40, 0x00])
+                body += struct.pack(">I", size)
+                body += data
         return bytes(body)
 
     @staticmethod
@@ -211,16 +217,20 @@ class DLPClient:
             if offset >= len(data):
                 break
             first_byte = data[offset]
-            if first_byte & 0x80:
-                # Long arg: 2-byte ID, 2-byte size
-                long_id = struct.unpack_from(">H", data, offset)[0]
-                arg_id = long_id & 0x3FFF
+            flag = first_byte & 0xC0
+            arg_id = first_byte & 0x3F
+            if flag == 0x80:
+                # Short arg: 1-byte ID|0x80, pad, 2-byte size
                 size = struct.unpack_from(">H", data, offset + 2)[0]
                 arg_data = data[offset + 4: offset + 4 + size]
                 offset += 4 + size
+            elif flag == 0x40:
+                # Long arg: 1-byte ID|0x40, pad, 4-byte size
+                size = struct.unpack_from(">I", data, offset + 2)[0]
+                arg_data = data[offset + 6: offset + 6 + size]
+                offset += 6 + size
             else:
-                # Small arg: 1-byte ID, 1-byte size
-                arg_id = first_byte & 0x3F
+                # Tiny arg: 1-byte ID, 1-byte size
                 size = data[offset + 1]
                 arg_data = data[offset + 2: offset + 2 + size]
                 offset += 2 + size

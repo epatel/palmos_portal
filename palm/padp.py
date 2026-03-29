@@ -19,7 +19,7 @@ PADP_FLAG_FIRST = 0x80
 PADP_FLAG_LAST = 0x40
 
 # Default max payload size per fragment
-PADP_MAX_PAYLOAD = 1024
+PADP_MAX_PAYLOAD = 512
 
 
 def parse_padp_header(data: bytes) -> tuple:

@@ -347,8 +347,7 @@ class PalmDatabase:
             if e.error_code not in (DLPError.NOT_FOUND, DLPError.NONE_OPEN):
                 raise
 
-        # Create the database, then reopen in read-write mode
-        from palm.dlp import DB_MODE_READ_WRITE
+        # Create the database (returns a write handle)
         handle = dlp.create_db(
             name=self.name,
             creator=self.creator,
@@ -356,8 +355,6 @@ class PalmDatabase:
             flags=self.attributes,
             version=self.version,
         )
-        dlp.close_db(handle)
-        handle = dlp.open_db(self.name, DB_MODE_READ_WRITE)
 
         try:
             # Write app info
