@@ -211,5 +211,13 @@ def delete(ctx, name):
         click.echo(f"Deleted '{name}'.")
 
 
+@cli.command()
+@click.option("--port", default=8000, help="Port to serve on")
+def web(port):
+    """Launch web dashboard."""
+    from web.server import run
+    run()
+
+
 if __name__ == "__main__":
     cli()
