@@ -69,16 +69,42 @@ class PADPConnection:
         return struct.pack(">BBH", ptype, flags, payload_size)
 
     def send(self, data: bytes) -> None:
-        """Fragment data and send each fragment via SLP, waiting for ACK."""
+        """Fragment data and send each fragment via SLP, waiting for ACK.
+
+        Follows pilot-link's PADP TX semantics:
+        - First fragment: flags=FIRST, size=total_length
+        - Middle fragments: flags=0, size=byte_offset
+        - Last fragment: flags=LAST, size=byte_offset (or FIRST|LAST if single)
+        - Single fragment: flags=FIRST|LAST, size=total_length
+        """
         from palm.slp import SLP_TYPE_PADP, SLP_SOCKET_DLP
 
         txn_id = self._next_txn_id()
-        fragments = fragment_payload(data)
-        logger.debug(f"PADP send: {len(data)} bytes in {len(fragments)} fragment(s), txn=0x{txn_id:02X}")
+        total_len = len(data)
+        offset = 0
+        is_first = True
+        frag_num = 0
+        num_frags = (total_len + PADP_MAX_PAYLOAD - 1) // PADP_MAX_PAYLOAD if total_len > 0 else 1
+        logger.debug(f"PADP send: {total_len} bytes in {num_frags} fragment(s), txn=0x{txn_id:02X}")
 
-        for frag_idx, (flags, chunk) in enumerate(fragments):
-            header = self.build_padp_header(PADP_TYPE_DATA, flags, len(chunk))
+        while True:
+            chunk_len = min(PADP_MAX_PAYLOAD, total_len - offset)
+            chunk = data[offset:offset + chunk_len]
+            is_last = (offset + chunk_len >= total_len)
+
+            # Build flags
+            flags = 0
+            if is_first:
+                flags |= PADP_FLAG_FIRST
+            if is_last:
+                flags |= PADP_FLAG_LAST
+
+            # Size field: total_length for first fragment, byte_offset for rest
+            size_field = total_len if is_first else offset
+
+            header = self.build_padp_header(PADP_TYPE_DATA, flags, size_field)
             body = header + chunk
+
             max_attempts = 3
             for attempt in range(max_attempts):
                 self._slp.send(
@@ -90,7 +116,7 @@ class PADPConnection:
                 )
                 # Wait for ACK — skip stale/unrelated packets
                 got_ack = False
-                for _ in range(5):  # read up to 5 packets looking for our ACK
+                for _ in range(5):
                     try:
                         ack_pkt = self._slp.receive()
                     except (TimeoutError, EOFError):
@@ -101,13 +127,20 @@ class PADPConnection:
                     if ack_type == PADP_TYPE_ACK and ack_pkt.txn_id == txn_id:
                         got_ack = True
                         break
-                    # Got a stale/unrelated packet, keep reading
+                    if ack_type == PADP_TYPE_TICKLE:
+                        continue  # Keep waiting
                     logger.debug(f"Skipped packet: txn=0x{ack_pkt.txn_id:02X} padp_type={ack_type}")
                 if got_ack:
-                    logger.debug(f"  Fragment {frag_idx+1}/{len(fragments)} ACKed ({len(chunk)} bytes)")
+                    frag_num += 1
+                    logger.debug(f"  Fragment {frag_num}/{num_frags} ACKed ({chunk_len} bytes)")
                     break
             else:
                 raise TimeoutError("No ACK received after retries")
+
+            offset += chunk_len
+            is_first = False
+            if is_last:
+                break
 
     def receive(self) -> bytes:
         """Read SLP packets, handle tickles, collect PADP fragments, return reassembled payload."""

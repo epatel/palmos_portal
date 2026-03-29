@@ -240,7 +240,7 @@ class DLPClient:
         self._padp.send(raw)
         response = self._padp.receive()
         resp_func_id, error_code, resp_args = self.parse_response(response)
-        logger.debug("DLP recv: func=0x%02X error=0x%04X args=%d", resp_func_id, error_code, len(resp_args))
+        logger.debug("DLP recv: func=0x%02X error=0x%04X args=%d raw=%s", resp_func_id, error_code, len(resp_args), response[:20].hex())
         if error_code != 0:
             raise DLPException(func_id, error_code)
         return resp_args

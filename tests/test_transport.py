@@ -100,7 +100,7 @@ class TestConnectionReadWrite:
         conn = Connection()
         conn._ep_out = MagicMock()
         conn.write(b"\x01\x02\x03")
-        conn._ep_out.write.assert_called_once_with(b"\x01\x02\x03")
+        conn._ep_out.write.assert_called_once_with(b"\x01\x02\x03", timeout=15000)
 
     def test_read_from_endpoint(self):
         from palm.transport import Connection
