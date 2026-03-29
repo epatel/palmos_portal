@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Palm-Com Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; }
+
+  header { background: #2c3e50; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 20px; font-weight: 600; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .status-dot.connected { background: #2ecc71; }
+  .status-dot.waiting { background: #f1c40f; }
+  .status-dot.disconnected { background: #e74c3c; }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+
+  .device-info { background: white; border-radius: 8px; padding: 16px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .device-info h2 { font-size: 16px; color: #666; margin-bottom: 4px; }
+  .device-info .details { font-size: 18px; }
+
+  .section { background: white; border-radius: 8px; padding: 16px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .section-header h2 { font-size: 16px; }
+  .section-header .actions { display: flex; gap: 8px; }
+
+  button { background: #3498db; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  button:hover { background: #2980b9; }
+  button:disabled { background: #bdc3c7; cursor: not-allowed; }
+  button.danger { background: #e74c3c; }
+  button.danger:hover { background: #c0392b; }
+  button.secondary { background: #95a5a6; }
+  button.secondary:hover { background: #7f8c8d; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 8px; border-bottom: 2px solid #eee; color: #666; font-weight: 600; }
+  td { padding: 8px; border-bottom: 1px solid #eee; }
+  tr:hover td { background: #f8f9fa; }
+  .actions-cell { white-space: nowrap; }
+  .actions-cell button { padding: 3px 8px; font-size: 12px; margin-left: 4px; }
+
+  .drop-zone { border: 2px dashed #bdc3c7; border-radius: 8px; padding: 32px; text-align: center; color: #999; cursor: pointer; transition: all 0.2s; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #3498db; background: #ebf5fb; color: #3498db; }
+  .drop-zone input { display: none; }
+
+  .message { padding: 12px 24px; text-align: center; color: #999; font-size: 14px; }
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #2c3e50; color: white; padding: 12px 20px; border-radius: 6px; font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 100; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #e74c3c; }
+
+  .progress-bar { background: #ecf0f1; border-radius: 4px; height: 6px; margin-top: 8px; overflow: hidden; display: none; }
+  .progress-bar .fill { background: #3498db; height: 100%; width: 0%; transition: width 0.3s; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Palm-Com Dashboard</h1>
+  <div class="status">
+    <span class="status-dot disconnected" id="statusDot"></span>
+    <span id="statusText">Disconnected</span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="device-info" id="deviceInfo" style="display:none">
+    <h2>Device</h2>
+    <div class="details">
+      <span id="deviceName">—</span> &nbsp;·&nbsp; ROM <span id="romVersion">—</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Databases <span id="dbCount"></span></h2>
+      <div class="actions">
+        <button id="btnRefresh" onclick="send({action:'refresh'})" disabled>Refresh</button>
+        <button id="btnBackup" onclick="startBackup()" disabled>Backup All</button>
+      </div>
+    </div>
+    <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
+    <table id="dbTable" style="display:none">
+      <thead>
+        <tr><th>Name</th><th>Type</th><th>Creator</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="dbBody"></tbody>
+    </table>
+    <div class="message" id="dbMessage">Press HotSync button to connect...</div>
+  </div>
+
+  <div class="section">
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      Drop .prc / .pdb files here to install<br><small>or click to browse</small>
+      <input type="file" id="fileInput" accept=".prc,.pdb,.PRC,.PDB" multiple>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let ws;
+let isConnected = false;
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    handle(msg);
+  };
+
+  ws.onclose = () => {
+    setTimeout(connect, 1000);
+  };
+}
+
+function send(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+  }
+}
+
+function handle(msg) {
+  switch (msg.type) {
+    case 'status':
+      setStatus(msg.state);
+      break;
+    case 'sysinfo':
+      document.getElementById('deviceName').textContent = msg.device;
+      document.getElementById('romVersion').textContent = msg.rom_version;
+      document.getElementById('deviceInfo').style.display = '';
+      break;
+    case 'db_list':
+      renderDatabases(msg.databases);
+      break;
+    case 'deleted':
+      toast(`Deleted ${msg.name}`);
+      break;
+    case 'push_done':
+      toast(`Installed ${msg.name}`);
+      break;
+    case 'progress':
+      toast(msg.detail);
+      break;
+    case 'backup_progress':
+      showProgress(msg.current, msg.total, `Backing up ${msg.name}...`);
+      break;
+    case 'backup_done':
+      hideProgress();
+      toast('Backup complete — downloading...');
+      window.location = '/api/backup';
+      break;
+    case 'error':
+      toast(msg.message, true);
+      break;
+  }
+}
+
+function setStatus(state) {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  dot.className = 'status-dot ' + state;
+  const labels = { connected: 'Connected', waiting: 'Waiting for HotSync...', disconnected: 'Disconnected' };
+  text.textContent = labels[state] || state;
+
+  isConnected = state === 'connected';
+  document.getElementById('btnRefresh').disabled = !isConnected;
+  document.getElementById('btnBackup').disabled = !isConnected;
+
+  if (state === 'waiting') {
+    document.getElementById('dbMessage').textContent = 'Press HotSync button to connect...';
+    document.getElementById('dbMessage').style.display = '';
+    document.getElementById('dbTable').style.display = 'none';
+    document.getElementById('deviceInfo').style.display = 'none';
+  } else if (state === 'disconnected') {
+    document.getElementById('dbMessage').textContent = 'Device disconnected';
+    document.getElementById('dbMessage').style.display = '';
+    document.getElementById('dbTable').style.display = 'none';
+    document.getElementById('deviceInfo').style.display = 'none';
+  }
+}
+
+function renderDatabases(dbs) {
+  const body = document.getElementById('dbBody');
+  body.innerHTML = '';
+  dbs.forEach(db => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${esc(db.name)}</td>
+      <td>${esc(db.db_type)}</td>
+      <td>${esc(db.creator)}</td>
+      <td class="actions-cell">
+        <button onclick="pullDb('${esc(db.name)}')">Download</button>
+        <button class="danger" onclick="deleteDb('${esc(db.name)}')">Delete</button>
+      </td>`;
+    body.appendChild(tr);
+  });
+  document.getElementById('dbCount').textContent = `(${dbs.length})`;
+  document.getElementById('dbTable').style.display = '';
+  document.getElementById('dbMessage').style.display = 'none';
+}
+
+function pullDb(name) {
+  window.location = '/api/pull/' + encodeURIComponent(name);
+}
+
+function deleteDb(name) {
+  if (confirm(`Delete "${name}" from device?`)) {
+    send({ action: 'delete', name: name });
+  }
+}
+
+function startBackup() {
+  send({ action: 'backup' });
+  showProgress(0, 1, 'Starting backup...');
+}
+
+function showProgress(current, total, label) {
+  const bar = document.getElementById('progressBar');
+  const fill = document.getElementById('progressFill');
+  bar.style.display = '';
+  fill.style.width = (current / total * 100) + '%';
+}
+
+function hideProgress() {
+  document.getElementById('progressBar').style.display = 'none';
+  document.getElementById('progressFill').style.width = '0%';
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+let toastTimer;
+function toast(msg, isError) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isError ? ' error' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = 'toast', 3000);
+}
+
+// File upload
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  uploadFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => {
+  uploadFiles(fileInput.files);
+  fileInput.value = '';
+});
+
+function uploadFiles(files) {
+  for (const file of files) {
+    const form = new FormData();
+    form.append('file', file);
+    toast(`Uploading ${file.name}...`);
+    fetch('/api/push', { method: 'POST', body: form })
+      .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); })
+      .catch(e => toast(e.message, true));
+  }
+}
+
+connect();
+</script>
+</body>
+</html>
