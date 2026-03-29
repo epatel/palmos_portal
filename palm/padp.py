@@ -68,6 +68,16 @@ class PADPConnection:
         """Pack a 4-byte PADP header."""
         return struct.pack(">BBH", ptype, flags, payload_size)
 
+    def send_tickle(self) -> None:
+        """Send a PADP tickle (keep-alive) to prevent device timeout."""
+        from palm.slp import SLP_TYPE_PADP, SLP_SOCKET_DLP
+        txn_id = self._next_txn_id()
+        header = self.build_padp_header(PADP_TYPE_TICKLE, PADP_FLAG_FIRST | PADP_FLAG_LAST, 0)
+        self._slp.send(
+            dest=SLP_SOCKET_DLP, src=SLP_SOCKET_DLP,
+            ptype=SLP_TYPE_PADP, txn_id=txn_id, data=header,
+        )
+
     def send(self, data: bytes) -> None:
         """Fragment data and send each fragment via SLP, waiting for ACK.
 

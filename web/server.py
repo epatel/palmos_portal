@@ -40,6 +40,7 @@ class DeviceManager:
         self.state: str = "disconnected"
         self.conn: Connection | None = None
         self.dlp: DLPClient | None = None
+        self._padp: PADPConnection | None = None
         self.device_name: str = ""
         self.rom_version: str = ""
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -113,6 +114,7 @@ class DeviceManager:
                     )
                     padp.send(response)
 
+                self._padp = padp
                 self.dlp = DLPClient(padp)
                 self.dlp.open_conduit()
 
@@ -141,6 +143,9 @@ class DeviceManager:
                 continue
 
             # Command serving phase
+            # Command serving phase — send tickles to keep device alive
+            tickle_interval = 5  # seconds between tickles
+            last_tickle = time.time()
             while self._running and self.state == "connected":
                 self._command_event.wait(timeout=1.0)
                 self._command_event.clear()
@@ -149,12 +154,22 @@ class DeviceManager:
                     commands = self._command_queue[:]
                     self._command_queue.clear()
 
-                for cmd in commands:
+                if commands:
+                    last_tickle = time.time()
+                    for cmd in commands:
+                        try:
+                            self._handle_command(cmd)
+                        except Exception as e:
+                            logger.error(f"Command failed: {e}")
+                            self._send_event({"type": "error", "message": str(e)})
+                            self._cleanup()
+                            break
+                elif time.time() - last_tickle >= tickle_interval:
+                    # Send keepalive tickle
                     try:
-                        self._handle_command(cmd)
-                    except Exception as e:
-                        logger.error(f"Command failed: {e}")
-                        self._send_event({"type": "error", "message": str(e)})
+                        self._padp.send_tickle()
+                        last_tickle = time.time()
+                    except Exception:
                         self._cleanup()
                         break
 
@@ -259,6 +274,7 @@ class DeviceManager:
                 pass
         self.conn = None
         self.dlp = None
+        self._padp = None
 
 
 # ---------------------------------------------------------------------------
