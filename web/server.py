@@ -395,6 +395,73 @@ async def backup_all():
     return Response(content="No backup available. Trigger backup first.", status_code=404)
 
 
+@app.get("/api/model/{name}")
+async def get_model(name: str):
+    """Parse a TGL0 database and return 3D model data as JSON."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        file_bytes, ext = await asyncio.get_event_loop().run_in_executor(
+            None, device_manager.pull_database, name,
+        )
+        db = PalmDatabase.from_bytes(file_bytes)
+        if db.creator != "TGL0":
+            return Response(content="Not a tinyGL model", status_code=400)
+        model = _parse_tgl0_model(db)
+        return model
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
+
+
+def _parse_tgl0_model(db: PalmDatabase) -> dict:
+    """Parse a TGL0 PDB into vertices and triangle strips."""
+    if len(db.records) < 3:
+        raise ValueError("Not enough records for a 3D model")
+
+    # Record 0: header (version, num_vertices, num_strips)
+    r0 = db.records[0].data
+    version, num_verts, num_strips = struct.unpack(">HHH", r0[:6])
+
+    # Record 1: vertices (16 bytes each: X, Y, Z, W as 16.16 fixed point)
+    r1 = db.records[1].data
+    vertices = []
+    for i in range(num_verts):
+        off = i * 16
+        x, y, z, w = struct.unpack(">iiii", r1[off:off + 16])
+        vertices.append([x / 65536.0, y / 65536.0, z / 65536.0])
+
+    # Records 2+: triangle strips (arrays of uint16 vertex indices)
+    strips = []
+    for i in range(2, 2 + num_strips):
+        if i >= len(db.records):
+            break
+        r = db.records[i].data
+        indices = []
+        for j in range(len(r) // 2):
+            idx = struct.unpack(">H", r[j * 2:j * 2 + 2])[0]
+            indices.append(idx)
+        strips.append(indices)
+
+    # Convert triangle strips to triangle list for Three.js
+    triangles = []
+    for strip in strips:
+        for j in range(len(strip) - 2):
+            if j % 2 == 0:
+                triangles.append([strip[j], strip[j + 1], strip[j + 2]])
+            else:
+                triangles.append([strip[j + 1], strip[j], strip[j + 2]])
+
+    return {
+        "name": db.name,
+        "version": version,
+        "vertices": vertices,
+        "triangles": triangles,
+        "strips": strips,
+        "num_vertices": num_verts,
+        "num_strips": num_strips,
+    }
+
+
 def run(port: int = 8000):
     """Run the web dashboard server."""
     import socket

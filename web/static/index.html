@@ -53,6 +53,18 @@
 
   .progress-bar { background: #ecf0f1; border-radius: 4px; height: 6px; margin-top: 8px; overflow: hidden; display: none; }
   .progress-bar .fill { background: #3498db; height: 100%; width: 0%; transition: width 0.3s; }
+
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; }
+  .modal-overlay.show { display: flex; align-items: center; justify-content: center; }
+  .modal { background: white; border-radius: 12px; width: 90vw; max-width: 800px; height: 70vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #eee; }
+  .modal-header h3 { font-size: 16px; }
+  .modal-close { background: none; color: #999; font-size: 24px; padding: 0 8px; border: none; cursor: pointer; }
+  .modal-close:hover { color: #333; background: none; }
+  .modal-body { flex: 1; position: relative; }
+  .modal-body canvas { width: 100% !important; height: 100% !important; }
+  button.view3d { background: #27ae60; }
+  button.view3d:hover { background: #219a52; }
 </style>
 </head>
 <body>
@@ -99,7 +111,19 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modelModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modelTitle">3D Model</h3>
+      <button class="modal-close" onclick="closeModel()">&times;</button>
+    </div>
+    <div class="modal-body" id="modelContainer"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
 let ws;
@@ -190,11 +214,13 @@ function renderDatabases(dbs) {
   body.innerHTML = '';
   dbs.forEach(db => {
     const tr = document.createElement('tr');
+    const isTGL = db.creator === 'TGL0' && !db.is_resource;
     tr.innerHTML = `
       <td>${esc(db.name)}</td>
       <td>${esc(db.db_type)}</td>
       <td>${esc(db.creator)}</td>
       <td class="actions-cell">
+        ${isTGL ? `<button class="view3d" onclick="viewModel('${esc(db.name)}')">3D</button>` : ''}
         <button onclick="pullDb('${esc(db.name)}')">Download</button>
         <button class="danger" onclick="deleteDb('${esc(db.name)}')">Delete</button>
       </td>`;
@@ -272,6 +298,128 @@ function uploadFiles(files) {
       .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); })
       .catch(e => toast(e.message, true));
   }
+}
+
+// 3D Model Viewer
+let currentRenderer, currentScene, currentCamera, currentAnimId;
+
+function viewModel(name) {
+  toast('Loading 3D model...');
+  fetch('/api/model/' + encodeURIComponent(name))
+    .then(r => { if (!r.ok) throw new Error('Failed to load'); return r.json(); })
+    .then(data => showModel(data))
+    .catch(e => toast(e.message, true));
+}
+
+function showModel(data) {
+  document.getElementById('modelTitle').textContent = data.name;
+  const modal = document.getElementById('modelModal');
+  const container = document.getElementById('modelContainer');
+  container.innerHTML = '';
+  modal.classList.add('show');
+
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a1a2e);
+
+  const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(renderer.domElement);
+
+  // Build geometry from vertices and triangles
+  const geom = new THREE.BufferGeometry();
+  const verts = new Float32Array(data.vertices.flat());
+  geom.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+
+  const indices = [];
+  data.triangles.forEach(t => indices.push(t[0], t[1], t[2]));
+  geom.setIndex(indices);
+  geom.computeVertexNormals();
+
+  // Center the model
+  geom.computeBoundingBox();
+  const center = new THREE.Vector3();
+  geom.boundingBox.getCenter(center);
+  geom.translate(-center.x, -center.y, -center.z);
+  const size = new THREE.Vector3();
+  geom.boundingBox.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z);
+
+  // Solid mesh
+  const mat = new THREE.MeshPhongMaterial({
+    color: 0x4a90d9,
+    specular: 0x222222,
+    shininess: 40,
+    side: THREE.DoubleSide,
+  });
+  scene.add(new THREE.Mesh(geom, mat));
+
+  // Wireframe overlay
+  const wireMat = new THREE.MeshBasicMaterial({
+    color: 0x88bbff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.15,
+  });
+  scene.add(new THREE.Mesh(geom, wireMat));
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x404040));
+  const light1 = new THREE.DirectionalLight(0xffffff, 0.8);
+  light1.position.set(5, 5, 5);
+  scene.add(light1);
+  const light2 = new THREE.DirectionalLight(0x8888ff, 0.4);
+  light2.position.set(-5, -3, -5);
+  scene.add(light2);
+
+  camera.position.set(0, maxDim * 0.5, maxDim * 2);
+  camera.lookAt(0, 0, 0);
+
+  // Mouse rotation
+  let isDragging = false, prevX, prevY, rotX = 0, rotY = 0;
+  renderer.domElement.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+  window.addEventListener('mouseup', () => isDragging = false);
+  renderer.domElement.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    rotY += (e.clientX - prevX) * 0.01;
+    rotX += (e.clientY - prevY) * 0.01;
+    rotX = Math.max(-Math.PI/2, Math.min(Math.PI/2, rotX));
+    prevX = e.clientX; prevY = e.clientY;
+  });
+  // Scroll zoom
+  renderer.domElement.addEventListener('wheel', e => {
+    e.preventDefault();
+    camera.position.multiplyScalar(e.deltaY > 0 ? 1.1 : 0.9);
+  }, { passive: false });
+
+  currentRenderer = renderer;
+  currentScene = scene;
+  currentCamera = camera;
+
+  function animate() {
+    currentAnimId = requestAnimationFrame(animate);
+    // Apply rotation
+    const dist = camera.position.length();
+    camera.position.set(
+      dist * Math.sin(rotY) * Math.cos(rotX),
+      dist * Math.sin(rotX),
+      dist * Math.cos(rotY) * Math.cos(rotX)
+    );
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+function closeModel() {
+  document.getElementById('modelModal').classList.remove('show');
+  if (currentAnimId) cancelAnimationFrame(currentAnimId);
+  if (currentRenderer) currentRenderer.dispose();
+  document.getElementById('modelContainer').innerHTML = '';
 }
 
 connect();
