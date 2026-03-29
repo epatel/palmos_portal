@@ -395,13 +395,25 @@ async def backup_all():
     return Response(content="No backup available. Trigger backup first.", status_code=404)
 
 
-def run():
+def run(port: int = 8000):
     """Run the web dashboard server."""
+    import socket
+    import subprocess
     import uvicorn
     logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
-    print("Palm-Com Dashboard: http://localhost:8000")
+
+    # Find an available port
+    for p in range(port, port + 10):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("localhost", p)) != 0:
+                port = p
+                break
+
+    url = f"http://localhost:{port}"
+    print(f"Palm-Com Dashboard: {url}")
     print("Press HotSync on your Visor to connect.")
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+    subprocess.Popen(["open", url])
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
 
 
 if __name__ == "__main__":
