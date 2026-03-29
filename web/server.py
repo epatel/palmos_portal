@@ -47,6 +47,7 @@ class DeviceManager:
         self._queue: asyncio.Queue | None = None
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
+        self._dlp_lock = threading.Lock()  # Serialize all DLP operations
         self._command_queue: list = []
         self._command_event = threading.Event()
         self._running = False
@@ -147,9 +148,8 @@ class DeviceManager:
                 self._cleanup()
                 continue
 
-            # Command serving phase
             # Command serving phase — send tickles to keep device alive
-            tickle_interval = 5  # seconds between tickles
+            tickle_interval = 5
             last_tickle = time.time()
             while self._running and self.state == "connected":
                 self._command_event.wait(timeout=1.0)
@@ -160,23 +160,24 @@ class DeviceManager:
                     self._command_queue.clear()
 
                 if commands:
-                    last_tickle = time.time()
                     for cmd in commands:
+                        with self._dlp_lock:
+                            last_tickle = time.time()
+                            try:
+                                self._handle_command(cmd)
+                            except Exception as e:
+                                logger.error(f"Command failed: {e}")
+                                self._send_event({"type": "error", "message": str(e)})
+                                self._cleanup()
+                                break
+                elif time.time() - last_tickle >= tickle_interval:
+                    with self._dlp_lock:
                         try:
-                            self._handle_command(cmd)
-                        except Exception as e:
-                            logger.error(f"Command failed: {e}")
-                            self._send_event({"type": "error", "message": str(e)})
+                            self._padp.send_tickle()
+                            last_tickle = time.time()
+                        except Exception:
                             self._cleanup()
                             break
-                elif time.time() - last_tickle >= tickle_interval:
-                    # Send keepalive tickle
-                    try:
-                        self._padp.send_tickle()
-                        last_tickle = time.time()
-                    except Exception:
-                        self._cleanup()
-                        break
 
         self._cleanup()
 
@@ -260,19 +261,19 @@ class DeviceManager:
 
     def pull_database(self, name: str) -> tuple[bytes, str]:
         """Pull a database from device. Returns (file_bytes, extension)."""
-        with self._lock:
+        with self._dlp_lock:
             databases = self.dlp.list_databases(ram=True, rom=True)
-        db_info = next((d for d in databases if d.name == name), None)
-        if db_info is None:
-            raise ValueError(f"Database '{name}' not found")
-        db = PalmDatabase.from_device(
-            self.dlp, name=name,
-            db_type=db_info.db_type,
-            creator=db_info.creator,
-            attributes=db_info.attributes,
-        )
-        ext = ".prc" if db.is_resource_db else ".pdb"
-        return db.to_bytes(), ext
+            db_info = next((d for d in databases if d.name == name), None)
+            if db_info is None:
+                raise ValueError(f"Database '{name}' not found")
+            db = PalmDatabase.from_device(
+                self.dlp, name=name,
+                db_type=db_info.db_type,
+                creator=db_info.creator,
+                attributes=db_info.attributes,
+            )
+            ext = ".prc" if db.is_resource_db else ".pdb"
+            return db.to_bytes(), ext
 
     def _cleanup(self):
         """Clean up device connection without USB reset (avoids segfault)."""
@@ -438,19 +439,20 @@ async def edit_record(name: str, index: int, req: EditRequest):
     try:
         def _do_edit():
             from palm.dlp import DB_MODE_READ_WRITE, Record as DLPRecord
-            dlp = device_manager.dlp
-            handle = dlp.open_db(name, DB_MODE_READ_WRITE)
-            try:
-                existing = dlp.read_record(handle, index)
-                new_data = req.text.encode("cp1252", errors="replace") + b"\x00"
-                dlp.write_record(handle, DLPRecord(
-                    index=index,
-                    attributes=existing.attributes & 0x0F,
-                    unique_id=existing.unique_id,
-                    data=new_data,
-                ))
-            finally:
-                dlp.close_db(handle)
+            with device_manager._dlp_lock:
+                dlp = device_manager.dlp
+                handle = dlp.open_db(name, DB_MODE_READ_WRITE)
+                try:
+                    existing = dlp.read_record(handle, index)
+                    new_data = req.text.encode("cp1252", errors="replace") + b"\x00"
+                    dlp.write_record(handle, DLPRecord(
+                        index=index,
+                        attributes=existing.attributes & 0x0F,
+                        unique_id=existing.unique_id,
+                        data=new_data,
+                    ))
+                finally:
+                    dlp.close_db(handle)
 
         await asyncio.get_event_loop().run_in_executor(None, _do_edit)
         return {"status": "ok"}

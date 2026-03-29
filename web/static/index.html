@@ -137,7 +137,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 let ws, isConnected = false, allDbs = [], selectedDb = null;
-let currentRenderer, currentAnimId;
+let currentRenderer, currentAnimId, previewSeq = 0;
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -232,10 +232,11 @@ function loadPreview(name) {
   body.innerHTML = '<div class="preview-loading">Loading...</div>';
   header.style.display = 'none';
 
+  const seq = ++previewSeq;
   fetch('/api/preview/' + encodeURIComponent(name))
     .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
-    .then(data => renderPreview(data))
-    .catch(e => { body.innerHTML = `<div class="preview-placeholder">Could not load preview</div>`; });
+    .then(data => { if (seq === previewSeq) renderPreview(data); })
+    .catch(e => { if (seq === previewSeq) body.innerHTML = `<div class="preview-placeholder">Could not load preview</div>`; });
 }
 
 function renderPreview(data) {
