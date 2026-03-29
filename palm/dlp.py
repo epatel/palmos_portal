@@ -160,11 +160,14 @@ class DLPException(Exception):
 # ---------------------------------------------------------------------------
 
 def parse_sys_info(data: bytes) -> SysInfo:
+    # Response: romVersion(4) + locale(4) + pad(1) + prodIDLength(1) + prodID(n)
     rom_version = struct.unpack_from(">I", data, 0)[0]
     locale = struct.unpack_from(">I", data, 4)[0]
-    name_bytes = data[8:]
-    null_pos = name_bytes.find(b"\x00")
-    name = name_bytes[:null_pos].decode("latin-1") if null_pos >= 0 else name_bytes.decode("latin-1")
+    if len(data) > 9:
+        name_len = data[9]
+        name = data[10:10 + name_len].split(b"\x00", 1)[0].decode("latin-1")
+    else:
+        name = ""
     return SysInfo(rom_version=rom_version, locale=locale, name=name)
 
 
@@ -260,7 +263,9 @@ class DLPClient:
     # ------------------------------------------------------------------
 
     def read_sys_info(self) -> SysInfo:
-        resp_args = self._execute(DLPFuncID.READ_SYS_INFO)
+        # Request arg: DLP version (major=1, minor=4 as 2+2 bytes)
+        arg = DLPArg(arg_id=0x20, data=struct.pack(">HH", 1, 4))
+        resp_args = self._execute(DLPFuncID.READ_SYS_INFO, [arg])
         if resp_args:
             return parse_sys_info(resp_args[0].data)
         raise DLPException(DLPFuncID.READ_SYS_INFO, DLPError.SYSTEM)
