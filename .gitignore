@@ -8,4 +8,5 @@ venv/
 temp/
 archive/
 debug_usb.py
+log.txt
 .claude/
