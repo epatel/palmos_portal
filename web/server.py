@@ -430,26 +430,32 @@ def _parse_tgl0_model(db: PalmDatabase) -> dict:
         x, y, z, w = struct.unpack(">iiii", r1[off:off + 16])
         vertices.append([x / 65536.0, y / 65536.0, z / 65536.0])
 
-    # Records 2+: triangle strips (arrays of uint16 vertex indices)
+    # Records 2+: triangle strips
+    # First 2 uint16 values are metadata (flags/color), vertex indices start at offset 2
     strips = []
     for i in range(2, 2 + num_strips):
         if i >= len(db.records):
             break
         r = db.records[i].data
-        indices = []
+        all_values = []
         for j in range(len(r) // 2):
-            idx = struct.unpack(">H", r[j * 2:j * 2 + 2])[0]
-            indices.append(idx)
+            all_values.append(struct.unpack(">H", r[j * 2:j * 2 + 2])[0])
+        # Skip first 2 values (metadata), rest are vertex indices
+        indices = all_values[2:]
         strips.append(indices)
 
     # Convert triangle strips to triangle list for Three.js
     triangles = []
     for strip in strips:
         for j in range(len(strip) - 2):
+            a, b, c = strip[j], strip[j + 1], strip[j + 2]
+            # Skip degenerate triangles
+            if a == b or b == c or a == c:
+                continue
             if j % 2 == 0:
-                triangles.append([strip[j], strip[j + 1], strip[j + 2]])
+                triangles.append([a, b, c])
             else:
-                triangles.append([strip[j + 1], strip[j], strip[j + 2]])
+                triangles.append([b, a, c])
 
     return {
         "name": db.name,
