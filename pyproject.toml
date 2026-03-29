@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "palm-com"
+version = "0.1.0"
+description = "CLI tool for communicating with PalmOS devices over USB"
+requires-python = ">=3.10"
+dependencies = [
+    "pyusb>=1.2.1",
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+palm = "cli:cli"
