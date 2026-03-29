@@ -461,14 +461,14 @@ async def preview_database(name: str):
                 # Extract version string
                 if r.res_type == "tver":
                     try:
-                        rinfo["text"] = r.data.rstrip(b"\x00").decode("latin-1")
+                        rinfo["text"] = r.data.rstrip(b"\x00").decode("cp1252")
                         app_info["version"] = rinfo["text"]
                     except Exception:
                         pass
                 # Extract app name from tAIN
                 if r.res_type == "tAIN":
                     try:
-                        rinfo["text"] = r.data.rstrip(b"\x00").decode("latin-1")
+                        rinfo["text"] = r.data.rstrip(b"\x00").decode("cp1252")
                     except Exception:
                         pass
                 # Categorize
@@ -498,7 +498,7 @@ async def preview_database(name: str):
         records = []
         for i, r in enumerate(db.records):
             try:
-                text = r.data.rstrip(b"\x00").decode("latin-1")
+                text = r.data.rstrip(b"\x00").decode("cp1252")
                 if all(c == '\x00' or c.isprintable() or c in '\n\r\t' for c in text):
                     records.append({"index": i, "text": text, "size": len(r.data)})
                 else:
@@ -535,7 +535,7 @@ def _preview_memo(db) -> dict:
     """Parse MemoDB — records are null-terminated text, first line is title."""
     entries = []
     for i, r in enumerate(db.records):
-        text = r.data.rstrip(b"\x00").decode("latin-1", errors="replace")
+        text = r.data.rstrip(b"\x00").decode("cp1252", errors="replace")
         lines = text.split("\n", 1)
         entries.append({
             "title": lines[0] if lines else "",
@@ -587,9 +587,9 @@ def _preview_datebook(db) -> dict:
             rest = d[offset:]
             parts = rest.split(b"\x00")
             if len(parts) >= 1:
-                description = parts[0].decode("latin-1", errors="replace")
+                description = parts[0].decode("cp1252", errors="replace")
             if has_note and len(parts) >= 2:
-                note = parts[1].decode("latin-1", errors="replace")
+                note = parts[1].decode("cp1252", errors="replace")
         entry = {"date": date, "description": description}
         if start_time:
             entry["time"] = f"{start_time} - {end_time}"
@@ -616,8 +616,8 @@ def _preview_todo(db) -> dict:
         priority = d[2]
         rest = d[3:]
         parts = rest.split(b"\x00")
-        description = parts[0].decode("latin-1", errors="replace") if parts else ""
-        note = parts[1].decode("latin-1", errors="replace") if len(parts) > 1 else ""
+        description = parts[0].decode("cp1252", errors="replace") if parts else ""
+        note = parts[1].decode("cp1252", errors="replace") if len(parts) > 1 else ""
         completed = bool(r.attributes & 0x80)
         entry = {
             "description": description,
@@ -655,7 +655,7 @@ def _preview_address(db) -> dict:
         entry = {}
         for j, val in enumerate(fields):
             if j < len(field_names) and val:
-                text = val.decode("latin-1", errors="replace")
+                text = val.decode("cp1252", errors="replace")
                 if text:
                     entry[field_names[j]] = text
         if entry:
