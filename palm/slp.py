@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from typing import Optional
 
 SLP_SIGNATURE = b"\xbe\xef\xed"
-SLP_TYPE_DATA = 0x00
-SLP_TYPE_LOOPBACK = 0x01
-SLP_TYPE_ACK = 0x02
+SLP_TYPE_SYSTEM = 0x00
+SLP_TYPE_PADP = 0x02
+SLP_TYPE_LOOP = 0x03
 SLP_SOCKET_DLP = 3
 _HEADER_SIZE = 10
 
@@ -51,7 +51,7 @@ class SLPPacket:
 
         body = raw[_HEADER_SIZE: _HEADER_SIZE + data_len]
         stored_crc = struct.unpack(">H", raw[_HEADER_SIZE + data_len: _HEADER_SIZE + data_len + 2])[0]
-        expected_crc = crc16(body)
+        expected_crc = crc16(raw[:_HEADER_SIZE + data_len])  # CRC over header + body
         if stored_crc != expected_crc:
             raise ValueError(f"Invalid CRC: got {stored_crc:#06x}, expected {expected_crc:#06x}")
 
@@ -68,7 +68,7 @@ class SLPSocket:
         header_without_cksum = struct.pack(">3sBBBHB", SLP_SIGNATURE, dest, src, ptype, data_len, txn_id)
         cksum = sum(header_without_cksum) % 256
         header = header_without_cksum + bytes([cksum])
-        crc = crc16(data)
+        crc = crc16(header + data)  # CRC over header + body
         return header + data + struct.pack(">H", crc)
 
     def send(self, dest: int, src: int, ptype: int, txn_id: int, data: bytes) -> None:
@@ -76,22 +76,29 @@ class SLPSocket:
         self._stream.write(packet)
 
     def receive(self) -> SLPPacket:
-        # Scan for signature
-        buf = b""
         while True:
-            byte = self._stream.read(1)
-            if not byte:
-                raise EOFError("Stream ended before SLP signature found")
-            buf += byte
-            if buf[-3:] == SLP_SIGNATURE:
-                break
+            # Scan for signature
+            buf = b""
+            while True:
+                byte = self._stream.read(1)
+                if not byte:
+                    raise EOFError("Stream ended before SLP signature found")
+                buf += byte
+                if buf[-3:] == SLP_SIGNATURE:
+                    break
 
-        # Read remainder of header (7 bytes after the 3-byte signature)
-        rest_of_header = self._stream.read(7)
-        header = SLP_SIGNATURE + rest_of_header
-        data_len = struct.unpack(">H", header[6:8])[0]
+            # Read remainder of header (7 bytes after the 3-byte signature)
+            rest_of_header = self._stream.read(7)
+            header = SLP_SIGNATURE + rest_of_header
+            data_len = struct.unpack(">H", header[6:8])[0]
 
-        body = self._stream.read(data_len)
-        crc_bytes = self._stream.read(2)
-        raw = header + body + crc_bytes
-        return SLPPacket.from_bytes(raw)
+            body = self._stream.read(data_len)
+            crc_bytes = self._stream.read(2)
+            raw = header + body + crc_bytes
+
+            try:
+                return SLPPacket.from_bytes(raw)
+            except ValueError:
+                # CRC or checksum mismatch — likely a truncated packet
+                # from device startup. Discard and scan for next signature.
+                continue

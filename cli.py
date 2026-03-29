@@ -6,6 +6,8 @@ import os
 import sys
 import logging
 
+import struct
+
 import click
 
 from palm.transport import Connection
@@ -13,6 +15,14 @@ from palm.slp import SLPSocket
 from palm.padp import PADPConnection
 from palm.dlp import DLPClient, DatabaseInfo, DB_MODE_READ
 from palm.pdb import PalmDatabase, ATTR_RESOURCE
+
+logger = logging.getLogger(__name__)
+
+# CMP (Connection Management Protocol) constants
+CMP_TYPE_WAKEUP = 0x01
+CMP_TYPE_INIT = 0x02
+_CMP_FORMAT = ">BBBBHI"
+_CMP_SIZE = struct.calcsize(_CMP_FORMAT)
 
 
 def setup_logging(verbose: bool) -> None:
@@ -29,11 +39,34 @@ class DeviceSession:
         self.dlp: DLPClient | None = None
 
     def __enter__(self) -> DLPClient:
+        import time
         self.conn = Connection()
-        self.conn.open()
+        click.echo("Waiting for Visor... press HotSync button.")
+        while True:
+            try:
+                self.conn.open()
+                break
+            except ConnectionError:
+                time.sleep(1)
 
         slp = SLPSocket(self.conn)
         padp = PADPConnection(slp)
+
+        # CMP handshake: receive and send via PADP
+        cmp_data = padp.receive()
+        if len(cmp_data) >= _CMP_SIZE:
+            cmp_type, flags, ver_major, ver_minor, unused, max_baud = struct.unpack(
+                _CMP_FORMAT, cmp_data[:_CMP_SIZE]
+            )
+            logger.info(f"CMP init: type={cmp_type}, ver={ver_major}.{ver_minor}, max_baud={max_baud}")
+
+            response = struct.pack(
+                _CMP_FORMAT,
+                CMP_TYPE_INIT, 0x00, ver_major, ver_minor, 0, 0,
+            )
+            padp.send(response)
+            logger.info("CMP handshake complete")
+
         self.dlp = DLPClient(padp)
         self.dlp.open_conduit()
 

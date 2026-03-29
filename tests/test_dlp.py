@@ -8,8 +8,7 @@ class TestDLPRequestBuild:
         raw = DLPClient.build_request(func_id=0x2E, args=[])  # OpenConduit
         assert raw[0] == 0x2E  # function ID
         assert raw[1] == 0  # arg count
-        assert raw[2] == 0  # error code (0 in requests)
-        assert len(raw) == 3
+        assert len(raw) == 2
 
     def test_build_request_with_small_arg(self):
         from palm.dlp import DLPClient, DLPArg
@@ -18,9 +17,9 @@ class TestDLPRequestBuild:
         raw = DLPClient.build_request(func_id=0x12, args=[arg])
         assert raw[0] == 0x12
         assert raw[1] == 1
-        assert raw[3] == 0x20  # arg ID
-        assert raw[4] == 2  # size
-        assert raw[5:7] == b"\x01\x02"
+        assert raw[2] == 0x20  # arg ID
+        assert raw[3] == 2  # size
+        assert raw[4:6] == b"\x01\x02"
 
     def test_build_request_with_long_arg(self):
         from palm.dlp import DLPClient, DLPArg

@@ -181,7 +181,7 @@ class DLPClient:
     @staticmethod
     def build_request(func_id: int, args: List[DLPArg]) -> bytes:
         """Build a raw DLP request packet."""
-        header = struct.pack(">BBB", func_id, len(args), 0x00)
+        header = struct.pack(">BB", func_id, len(args))
         body = bytearray(header)
         for arg in args:
             data = arg.data
@@ -234,7 +234,7 @@ class DLPClient:
         if args is None:
             args = []
         raw = self.build_request(func_id, args)
-        logger.debug("DLP send: func=0x%02X args=%d bytes=%d", func_id, len(args), len(raw))
+        logger.debug("DLP send: func=0x%02X args=%d bytes=%d hex=%s", func_id, len(args), len(raw), raw.hex())
         self._padp.send(raw)
         response = self._padp.receive()
         resp_func_id, error_code, resp_args = self.parse_response(response)
@@ -262,7 +262,6 @@ class DLPClient:
             flags |= DBLIST_RAM
         if rom:
             flags |= DBLIST_ROM
-        flags |= DBLIST_MULTIPLE
 
         databases = []
         start_index = 0
@@ -280,44 +279,43 @@ class DLPClient:
             if not resp_args:
                 break
 
-            rdata = resp_args[0].data
-            offset = 0
-            last_index = struct.unpack_from(">H", rdata, offset)[0]
-            offset += 2
-            resp_flags = rdata[offset]
-            offset += 1
-            count = rdata[offset]
-            offset += 1
+            # Response format (from pilot-link dlp.c):
+            # p+0: last_index (2 bytes)
+            # p+2: more flag (1 byte)
+            # p+3: count (1 byte)
+            # Per entry (at p+4 for single, repeated for multiple):
+            #   +0: total_size (1 byte, only with DBLIST_MULTIPLE)
+            #   +1: misc_flags (1 byte)
+            #   +2: db_flags (2 bytes)
+            #   +4: type (4 bytes)
+            #   +8: creator (4 bytes)
+            #   +12: version (2 bytes)
+            #   +14: modnum (4 bytes)
+            #   +18: crdate (4+4=8 bytes, two 32-bit values)
+            #   +26: moddate (8 bytes)
+            #   +34: backupdate (8 bytes)
+            #   +42: index (2 bytes)
+            #   +44: name (32 bytes, null-terminated)
+            p = resp_args[0].data
+            last_index = struct.unpack_from(">H", p, 0)[0]
+            more = p[2]
+            count = p[3]
 
-            for _ in range(count):
-                entry_start = offset
-                total_size = rdata[offset]
-                offset += 1
-                misc_flags = rdata[offset]
-                offset += 1
-                db_flags = struct.unpack_from(">H", rdata, offset)[0]
-                offset += 2
-                db_type = rdata[offset:offset + 4]
-                offset += 4
-                creator = rdata[offset:offset + 4]
-                offset += 4
-                version = struct.unpack_from(">H", rdata, offset)[0]
-                offset += 2
-                modnum = struct.unpack_from(">I", rdata, offset)[0]
-                offset += 4
-                crdate = struct.unpack_from(">I", rdata, offset)[0]
-                offset += 4
-                moddate = struct.unpack_from(">I", rdata, offset)[0]
-                offset += 4
-                backupdate = struct.unpack_from(">I", rdata, offset)[0]
-                offset += 4
-                db_index = struct.unpack_from(">H", rdata, offset)[0]
-                offset += 2
-                name_end = rdata.find(b"\x00", offset)
-                if name_end < 0:
-                    name_end = len(rdata)
-                name = rdata[offset:name_end].decode("latin-1")
-                offset = entry_start + total_size
+            for i in range(count):
+                # Entry starts at offset 4 (no total_size byte without MULTIPLE)
+                e = 4 + i * 80  # fixed 80-byte entries without MULTIPLE
+                misc_flags = p[e + 1]
+                db_flags = struct.unpack_from(">H", p, e + 2)[0]
+                db_type = p[e + 4:e + 8].decode("latin-1")
+                creator = p[e + 8:e + 12].decode("latin-1")
+                version = struct.unpack_from(">H", p, e + 12)[0]
+                modnum = struct.unpack_from(">I", p, e + 14)[0]
+                crdate = struct.unpack_from(">I", p, e + 18)[0]
+                moddate = struct.unpack_from(">I", p, e + 26)[0]
+                backupdate = struct.unpack_from(">I", p, e + 34)[0]
+                db_index = struct.unpack_from(">H", p, e + 42)[0]
+                name_raw = p[e + 44:e + 76]
+                name = name_raw.split(b"\x00", 1)[0].decode("latin-1")
 
                 databases.append(DatabaseInfo(
                     name=name,
@@ -331,8 +329,7 @@ class DLPClient:
                     num_records=0,
                 ))
 
-            # Check if more entries remain
-            if not (resp_flags & 0x80):  # no "more" flag
+            if not more:
                 break
             start_index = last_index + 1
 

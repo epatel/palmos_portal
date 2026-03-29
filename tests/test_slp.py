@@ -3,16 +3,16 @@ import struct
 
 class TestSLPBuild:
     def test_build_data_packet(self):
-        from palm.slp import SLPSocket, SLP_TYPE_DATA
+        from palm.slp import SLPSocket, SLP_TYPE_PADP
 
         packet = SLPSocket.build_packet(
-            dest=3, src=3, ptype=SLP_TYPE_DATA,
+            dest=3, src=3, ptype=SLP_TYPE_PADP,
             txn_id=0x01, data=b"\x00\x01\x02",
         )
         assert packet[:3] == b"\xbe\xef\xed"
         assert packet[3] == 3
         assert packet[4] == 3
-        assert packet[5] == SLP_TYPE_DATA
+        assert packet[5] == SLP_TYPE_PADP
         assert struct.unpack(">H", packet[6:8])[0] == 3
         assert packet[8] == 0x01
         expected_cksum = sum(packet[:9]) % 256
@@ -21,38 +21,38 @@ class TestSLPBuild:
         assert len(packet) == 10 + 3 + 2
 
     def test_build_empty_packet(self):
-        from palm.slp import SLPSocket, SLP_TYPE_DATA
+        from palm.slp import SLPSocket, SLP_TYPE_PADP
 
         packet = SLPSocket.build_packet(
-            dest=3, src=3, ptype=SLP_TYPE_DATA,
+            dest=3, src=3, ptype=SLP_TYPE_PADP,
             txn_id=0xFF, data=b"",
         )
         assert len(packet) == 10 + 0 + 2
 
     def test_build_ack_packet(self):
-        from palm.slp import SLPSocket, SLP_TYPE_ACK
+        from palm.slp import SLPSocket, SLP_TYPE_LOOP
 
         packet = SLPSocket.build_packet(
-            dest=3, src=3, ptype=SLP_TYPE_ACK,
+            dest=3, src=3, ptype=SLP_TYPE_LOOP,
             txn_id=0x05, data=b"",
         )
-        assert packet[5] == SLP_TYPE_ACK
+        assert packet[5] == SLP_TYPE_LOOP
         assert packet[8] == 0x05
 
 
 class TestSLPParse:
     def test_parse_roundtrip(self):
-        from palm.slp import SLPSocket, SLPPacket, SLP_TYPE_DATA
+        from palm.slp import SLPSocket, SLPPacket, SLP_TYPE_PADP
 
         original_data = b"Hello PalmOS"
         raw = SLPSocket.build_packet(
-            dest=3, src=3, ptype=SLP_TYPE_DATA,
+            dest=3, src=3, ptype=SLP_TYPE_PADP,
             txn_id=0x42, data=original_data,
         )
         pkt = SLPPacket.from_bytes(raw)
         assert pkt.dest == 3
         assert pkt.src == 3
-        assert pkt.ptype == SLP_TYPE_DATA
+        assert pkt.ptype == SLP_TYPE_PADP
         assert pkt.txn_id == 0x42
         assert pkt.data == original_data
 
@@ -66,10 +66,10 @@ class TestSLPParse:
 
     def test_parse_bad_checksum_raises(self):
         import pytest
-        from palm.slp import SLPSocket, SLPPacket, SLP_TYPE_DATA
+        from palm.slp import SLPSocket, SLPPacket, SLP_TYPE_PADP
 
         raw = bytearray(SLPSocket.build_packet(
-            dest=3, src=3, ptype=SLP_TYPE_DATA,
+            dest=3, src=3, ptype=SLP_TYPE_PADP,
             txn_id=1, data=b"test",
         ))
         raw[9] = (raw[9] + 1) % 256
@@ -78,10 +78,10 @@ class TestSLPParse:
 
     def test_parse_bad_crc_raises(self):
         import pytest
-        from palm.slp import SLPSocket, SLPPacket, SLP_TYPE_DATA
+        from palm.slp import SLPSocket, SLPPacket, SLP_TYPE_PADP
 
         raw = bytearray(SLPSocket.build_packet(
-            dest=3, src=3, ptype=SLP_TYPE_DATA,
+            dest=3, src=3, ptype=SLP_TYPE_PADP,
             txn_id=1, data=b"test",
         ))
         raw[-1] ^= 0xFF
