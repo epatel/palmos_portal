@@ -653,7 +653,7 @@ function initViewer(data, container) {
   window.addEventListener('mouseup', () => drag=false);
   renderer.domElement.addEventListener('mousemove', e => {
     if (!drag) return;
-    ry += (e.clientX-px)*0.01; rx += (e.clientY-py)*0.01;
+    ry -= (e.clientX-px)*0.01; rx -= (e.clientY-py)*0.01;
     rx = Math.max(-Math.PI/2, Math.min(Math.PI/2, rx));
     px=e.clientX; py=e.clientY;
   });
