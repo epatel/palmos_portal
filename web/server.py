@@ -441,17 +441,47 @@ async def preview_database(name: str):
             model = _parse_tgl0_model(db)
             return {"kind": "model3d", "name": db.name, "data": model}
 
-        # Resource database (.prc) — list resources
+        # Resource database (.prc) — show app info
         if db.is_resource_db:
+            app_info = {
+                "name": db.name,
+                "type": db.db_type,
+                "creator": db.creator,
+                "version": None,
+                "total_size": sum(len(r.data) for r in db.resources),
+                "code_size": 0,
+                "num_forms": 0,
+                "num_bitmaps": 0,
+                "num_strings": 0,
+                "num_resources": len(db.resources),
+            }
             resources = []
             for r in db.resources:
-                resources.append({
-                    "type": r.res_type,
-                    "id": r.res_id,
-                    "size": len(r.data),
-                })
-            return {"kind": "resources", "name": db.name, "type": db.db_type,
-                    "creator": db.creator, "resources": resources}
+                rinfo = {"type": r.res_type, "id": r.res_id, "size": len(r.data)}
+                # Extract version string
+                if r.res_type == "tver":
+                    try:
+                        rinfo["text"] = r.data.rstrip(b"\x00").decode("latin-1")
+                        app_info["version"] = rinfo["text"]
+                    except Exception:
+                        pass
+                # Extract app name from tAIN
+                if r.res_type == "tAIN":
+                    try:
+                        rinfo["text"] = r.data.rstrip(b"\x00").decode("latin-1")
+                    except Exception:
+                        pass
+                # Categorize
+                if r.res_type == "code":
+                    app_info["code_size"] += len(r.data)
+                elif r.res_type == "tFRM":
+                    app_info["num_forms"] += 1
+                elif r.res_type in ("Tbmp", "tAIB"):
+                    app_info["num_bitmaps"] += 1
+                elif r.res_type in ("tSTR", "tSTL"):
+                    app_info["num_strings"] += 1
+                resources.append(rinfo)
+            return {"kind": "app", "info": app_info, "resources": resources}
 
         # Record database — try to show as text
         records = []

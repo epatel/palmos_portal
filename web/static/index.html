@@ -244,6 +244,26 @@ function renderPreview(data) {
     document.getElementById('previewMeta').textContent = `3D Model - ${data.data.num_vertices} vertices, ${data.data.num_strips} strips`;
     body.innerHTML = '<div class="preview-3d" id="viewer3d"></div>';
     initViewer(data.data, document.getElementById('viewer3d'));
+  } else if (data.kind === 'app') {
+    const i = data.info;
+    document.getElementById('previewMeta').textContent = `${i.type} / ${i.creator}`;
+    let html = '<div class="record-list">';
+    html += '<div class="record-item"><div class="rec-header">Application Info</div><div class="rec-text">';
+    html += `Name: ${esc(i.name)}\n`;
+    if (i.version) html += `Version: ${esc(i.version)}\n`;
+    html += `Creator: ${esc(i.creator)}\n`;
+    html += `Total size: ${(i.total_size/1024).toFixed(1)} KB\n`;
+    html += `Code size: ${(i.code_size/1024).toFixed(1)} KB\n`;
+    html += `Forms: ${i.num_forms}  Bitmaps: ${i.num_bitmaps}  Strings: ${i.num_strings}`;
+    html += '</div></div>';
+    html += '<div class="record-item"><div class="rec-header">Resources (' + data.resources.length + ')</div>';
+    html += '<table class="resource-table"><thead><tr><th>Type</th><th>ID</th><th>Size</th><th>Info</th></tr></thead><tbody>';
+    data.resources.forEach(r => {
+      const info = r.text ? esc(r.text) : '';
+      html += `<tr><td><code>${esc(r.type)}</code></td><td>${r.id}</td><td>${r.size}</td><td>${info}</td></tr>`;
+    });
+    html += '</tbody></table></div></div>';
+    body.innerHTML = html;
   } else if (data.kind === 'records') {
     document.getElementById('previewMeta').textContent = `${data.type} / ${data.creator} - ${data.records.length} records`;
     let html = '<div class="record-list">';
