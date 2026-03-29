@@ -115,3 +115,128 @@ class TestPDBHeader:
         raw = make_pdb_bytes(name="TimeTest")
         db = PalmDatabase.from_bytes(raw)
         assert db.creation_time.year >= 1904
+
+
+def make_prc_bytes(
+    name: str = "TestApp",
+    db_type: str = "appl",
+    creator: str = "test",
+    resources: list[tuple[str, int, bytes]] | None = None,
+) -> bytes:
+    """Build a complete PRC file. resources: list of (type, id, data)."""
+    resources = resources or []
+    num_resources = len(resources)
+
+    header_size = 78
+    resource_list_size = num_resources * 10
+    padding = 2 if num_resources > 0 else 0
+    data_start = header_size + resource_list_size + padding
+
+    resource_list = b""
+    offset = data_start
+    for res_type, res_id, res_data in resources:
+        resource_list += struct.pack(
+            ">4sHI",
+            res_type.encode("ascii"),
+            res_id,
+            offset,
+        )
+        offset += len(res_data)
+
+    name_bytes = name.encode("ascii")[:31].ljust(32, b"\x00")
+    now = PALM_EPOCH_OFFSET + 1000000
+    header = struct.pack(
+        ">32sHHIIIIII4s4sIIH",
+        name_bytes,
+        0x0001,  # ATTR_RESOURCE
+        1, now, now, 0, 0, 0, 0,
+        db_type.encode("ascii"),
+        creator.encode("ascii"),
+        0, 0, num_resources,
+    )
+
+    data = header + resource_list
+    if padding:
+        data += b"\x00" * padding
+    for _, _, res_data in resources:
+        data += res_data
+
+    return data
+
+
+class TestPRCParsing:
+    def test_parse_empty_prc(self):
+        from palm.pdb import PalmDatabase
+
+        raw = make_prc_bytes(name="MyApp", db_type="appl", creator="MyAp")
+        db = PalmDatabase.from_bytes(raw)
+        assert db.name == "MyApp"
+        assert db.is_resource_db is True
+        assert len(db.resources) == 0
+        assert len(db.records) == 0
+
+    def test_parse_prc_with_resources(self):
+        from palm.pdb import PalmDatabase
+
+        resources = [
+            ("code", 1, b"\x00\x01\x02\x03" * 64),
+            ("tFRM", 1000, b"form data here"),
+            ("MBAR", 1000, b"menu"),
+        ]
+        raw = make_prc_bytes(name="TestApp", resources=resources)
+        db = PalmDatabase.from_bytes(raw)
+        assert db.is_resource_db is True
+        assert len(db.resources) == 3
+        assert db.resources[0].res_type == "code"
+        assert db.resources[0].res_id == 1
+        assert len(db.resources[0].data) == 256
+        assert db.resources[1].res_type == "tFRM"
+        assert db.resources[2].res_type == "MBAR"
+        assert db.resources[2].data == b"menu"
+
+    def test_roundtrip_prc(self):
+        from palm.pdb import PalmDatabase
+
+        resources = [
+            ("code", 0, b"\x4E\x75" * 100),
+            ("data", 0, b"string table data"),
+        ]
+        raw = make_prc_bytes(name="RoundApp", db_type="appl", creator="RnAp", resources=resources)
+        db = PalmDatabase.from_bytes(raw)
+        output = db.to_bytes()
+        db2 = PalmDatabase.from_bytes(output)
+        assert db2.name == "RoundApp"
+        assert db2.is_resource_db is True
+        assert db2.db_type == "appl"
+        assert db2.creator == "RnAp"
+        assert len(db2.resources) == 2
+        assert db2.resources[0].data == b"\x4E\x75" * 100
+        assert db2.resources[1].data == b"string table data"
+
+    def test_file_io_prc(self, tmp_path):
+        from palm.pdb import PalmDatabase
+
+        resources = [("code", 1, b"\x00\x01\x02")]
+        raw = make_prc_bytes(name="FileApp", resources=resources)
+        db = PalmDatabase.from_bytes(raw)
+
+        path = str(tmp_path / "test.prc")
+        db.to_file(path)
+        db2 = PalmDatabase.from_file(path)
+        assert db2.name == "FileApp"
+        assert db2.is_resource_db is True
+        assert len(db2.resources) == 1
+
+    def test_file_io_pdb(self, tmp_path):
+        from palm.pdb import PalmDatabase
+
+        records = [b"record one", b"record two"]
+        raw = make_pdb_bytes(name="FilePDB", records=records)
+        db = PalmDatabase.from_bytes(raw)
+
+        path = str(tmp_path / "test.pdb")
+        db.to_file(path)
+        db2 = PalmDatabase.from_file(path)
+        assert db2.name == "FilePDB"
+        assert db2.is_resource_db is False
+        assert len(db2.records) == 2
