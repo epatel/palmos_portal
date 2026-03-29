@@ -58,17 +58,17 @@ class Resource:
 class PalmDatabase:
     """Represents a PalmOS PDB or PRC database."""
     name: str
-    attributes: int
-    version: int
-    creation_time: datetime
-    modification_time: datetime
-    backup_time: datetime
-    modification_number: int
-    db_type: str
-    creator: str
-    unique_id_seed: int
-    app_info: bytes | None
-    sort_info: bytes | None
+    attributes: int = 0
+    version: int = 0
+    creation_time: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    modification_time: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    backup_time: datetime = field(default_factory=lambda: datetime(1904, 1, 1, tzinfo=timezone.utc))
+    modification_number: int = 0
+    db_type: str = ""
+    creator: str = ""
+    unique_id_seed: int = 0
+    app_info: bytes | None = None
+    sort_info: bytes | None = None
     records: list[Record] = field(default_factory=list)
     resources: list[Resource] = field(default_factory=list)
 
@@ -280,3 +280,95 @@ class PalmDatabase:
     def to_file(self, path: str | Path) -> None:
         """Write the database to a file."""
         Path(path).write_bytes(self.to_bytes())
+
+    @classmethod
+    def from_device(cls, dlp, name: str, db_type: str = "", creator: str = "",
+                    attributes: int = 0) -> "PalmDatabase":
+        """Download a database from the device via DLP."""
+        from palm.dlp import DB_MODE_READ
+
+        is_resource = bool(attributes & ATTR_RESOURCE)
+        handle = dlp.open_db(name, DB_MODE_READ)
+
+        try:
+            num_items = dlp.read_open_db_info(handle)
+
+            db = cls(
+                name=name,
+                attributes=attributes,
+                db_type=db_type,
+                creator=creator,
+            )
+
+            # Read app info
+            app_info = dlp.read_app_block(handle)
+            if app_info:
+                db.app_info = app_info
+
+            # Read sort info
+            sort_info = dlp.read_sort_block(handle)
+            if sort_info:
+                db.sort_info = sort_info
+
+            # Read records or resources
+            for i in range(num_items):
+                if is_resource:
+                    res = dlp.read_resource(handle, i)
+                    db.resources.append(Resource(
+                        res_type=res.res_type, res_id=res.res_id, data=res.data,
+                    ))
+                else:
+                    rec = dlp.read_record(handle, i)
+                    db.records.append(Record(
+                        data=rec.data, attributes=rec.attributes, unique_id=rec.unique_id,
+                    ))
+
+            return db
+        finally:
+            dlp.close_db(handle)
+
+    def to_device(self, dlp) -> None:
+        """Upload this database to the device via DLP."""
+        from palm.dlp import DLPException, DLPError
+
+        # Delete existing DB (ignore if not found)
+        try:
+            dlp.delete_db(self.name)
+        except DLPException as e:
+            if e.error_code != DLPError.NOT_FOUND:
+                raise
+
+        # Create the database
+        handle = dlp.create_db(
+            name=self.name,
+            creator=self.creator,
+            db_type=self.db_type,
+            flags=self.attributes,
+            version=self.version,
+        )
+
+        try:
+            # Write app info
+            if self.app_info:
+                dlp.write_app_block(handle, self.app_info)
+
+            # Write sort info
+            if self.sort_info:
+                dlp.write_sort_block(handle, self.sort_info)
+
+            # Write records or resources
+            if self.is_resource_db:
+                from palm.dlp import Resource as DLPResource
+                for res in self.resources:
+                    dlp.write_resource(handle, DLPResource(
+                        res_type=res.res_type, res_id=res.res_id, index=0, data=res.data,
+                    ))
+            else:
+                from palm.dlp import Record as DLPRecord
+                for rec in self.records:
+                    dlp.write_record(handle, DLPRecord(
+                        index=0, attributes=rec.attributes,
+                        unique_id=rec.unique_id, data=rec.data,
+                    ))
+        finally:
+            dlp.close_db(handle)
