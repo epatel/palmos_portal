@@ -192,6 +192,12 @@ class DeviceManager:
             self._do_push(cmd["data"], cmd["filename"])
         elif action == "backup":
             self._do_backup()
+        elif action == "disconnect":
+            try:
+                self.dlp.end_of_sync()
+            except Exception:
+                pass
+            self._cleanup()
 
     def _do_list(self):
         """List databases and send to clients."""
@@ -345,7 +351,7 @@ async def websocket_endpoint(ws: WebSocket):
             msg = json.loads(data)
             action = msg.get("action")
 
-            if action in ("list", "refresh", "backup"):
+            if action in ("list", "refresh", "backup", "disconnect"):
                 device_manager.submit_command(msg)
             elif action == "delete":
                 device_manager.submit_command(msg)

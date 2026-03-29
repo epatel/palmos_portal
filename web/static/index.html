@@ -74,6 +74,7 @@
   <div class="status">
     <span class="status-dot disconnected" id="statusDot"></span>
     <span id="statusText">Disconnected</span>
+    <button id="btnDisconnect" class="danger" onclick="send({action:'disconnect'})" style="display:none; margin-left:8px">Disconnect</button>
   </div>
 </header>
 
@@ -195,6 +196,7 @@ function setStatus(state) {
   isConnected = state === 'connected';
   document.getElementById('btnRefresh').disabled = !isConnected;
   document.getElementById('btnBackup').disabled = !isConnected;
+  document.getElementById('btnDisconnect').style.display = isConnected ? '' : 'none';
 
   if (state === 'waiting') {
     document.getElementById('dbMessage').textContent = 'Press HotSync button to connect...';
