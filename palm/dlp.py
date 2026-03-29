@@ -405,11 +405,10 @@ class DLPClient:
         return Record(index=rec_index, attributes=attrs, unique_id=rec_id, data=data)
 
     def write_record(self, handle: int, record: Record) -> None:
-        size = len(record.data)
-        arg_data = (struct.pack(">B", handle) +
+        # Format: handle(1) + 0x80(1) + recID(4) + flags(1) + catID(1) + data
+        arg_data = (struct.pack(">BB", handle, 0x80) +
                     struct.pack(">I", record.unique_id) +
                     struct.pack(">BB", record.attributes, 0) +
-                    struct.pack(">H", size) +
                     record.data)
         arg = DLPArg(arg_id=0x20, data=arg_data)
         self._execute(DLPFuncID.WRITE_RECORD, [arg])

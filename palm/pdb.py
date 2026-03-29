@@ -91,7 +91,7 @@ class PalmDatabase:
             unique_id_seed, _next_record_list, num_records,
         ) = struct.unpack_from(_HEADER_FORMAT, data, 0)
 
-        name = name_bytes.rstrip(b"\x00").decode("ascii", errors="replace")
+        name = name_bytes.split(b"\x00", 1)[0].decode("ascii", errors="replace")
         db_type = db_type_bytes.decode("ascii", errors="replace")
         creator = creator_bytes.decode("ascii", errors="replace")
 
