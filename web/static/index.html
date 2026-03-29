@@ -265,7 +265,8 @@ function renderPreview(data) {
   document.getElementById('previewName').textContent = data.name;
 
   if (data.kind === 'model3d') {
-    document.getElementById('previewMeta').textContent = `3D Model - ${data.data.num_vertices} vertices, ${data.data.num_strips} strips`;
+    window._model3dData = data.data;
+    document.getElementById('previewMeta').innerHTML = `3D Model - ${data.data.num_vertices} vertices, ${data.data.num_strips} strips <button onclick="downloadSTL()" style="margin-left:8px">Download STL</button>`;
     body.innerHTML = '<div class="preview-3d" id="viewer3d"></div>';
     initViewer(data.data, document.getElementById('viewer3d'));
   } else if (data.kind === 'app') {
@@ -567,6 +568,50 @@ function saveTodo(dbName, idx) {
   .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
   .then(() => { toast('Saved'); loadPreview(dbName); })
   .catch(e => toast(e.message, true));
+}
+
+// STL export
+function downloadSTL() {
+  const d = window._model3dData;
+  if (!d) return;
+  const tris = d.triangles;
+  const verts = d.vertices;
+
+  // Binary STL: 80-byte header + 4-byte tri count + 50 bytes per triangle
+  const buf = new ArrayBuffer(84 + tris.length * 50);
+  const view = new DataView(buf);
+  // Header (80 bytes, leave as zeros)
+  view.setUint32(80, tris.length, true); // little-endian tri count
+
+  let off = 84;
+  tris.forEach(t => {
+    const a = verts[t[0]], b = verts[t[1]], c = verts[t[2]];
+    // Compute face normal
+    const ux = b[0]-a[0], uy = b[1]-a[1], uz = b[2]-a[2];
+    const vx = c[0]-a[0], vy = c[1]-a[1], vz = c[2]-a[2];
+    const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+    const len = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1;
+    // Normal
+    view.setFloat32(off, nx/len, true); off += 4;
+    view.setFloat32(off, ny/len, true); off += 4;
+    view.setFloat32(off, nz/len, true); off += 4;
+    // Vertices
+    [a, b, c].forEach(v => {
+      view.setFloat32(off, v[0], true); off += 4;
+      view.setFloat32(off, v[1], true); off += 4;
+      view.setFloat32(off, v[2], true); off += 4;
+    });
+    view.setUint16(off, 0, true); off += 2; // attribute byte count
+  });
+
+  const blob = new Blob([buf], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a2 = document.createElement('a');
+  a2.href = url;
+  a2.download = (d.name || 'model') + '.stl';
+  a2.click();
+  URL.revokeObjectURL(url);
+  toast('Downloaded ' + a2.download);
 }
 
 // 3D Viewer (inline in preview panel)
