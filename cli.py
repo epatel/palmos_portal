@@ -100,7 +100,8 @@ def sysinfo(ctx):
         info = dlp.read_sys_info()
         rom_major = (info.rom_version >> 24) & 0xFF
         rom_minor = (info.rom_version >> 20) & 0x0F
-        click.echo(f"Device: {info.name}")
+        device_name = info.name or dlp._padp._slp._stream._dev.product or "Unknown"
+        click.echo(f"Device: {device_name}")
         click.echo(f"ROM Version: {rom_major}.{rom_minor}")
 
 
