@@ -1,4 +1,6 @@
-# palm-com
+<a href="https://claude.ai"><img src="made-with-claude.png" height="32" alt="Made with Claude"></a>
+
+# palmos-portal
 
 A Python toolkit for communicating with PalmOS devices over USB. Built from scratch — implements the full HotSync protocol stack (SLP, PADP, DLP) to read and write databases and applications to a Handspring Visor.
 
@@ -83,6 +85,20 @@ tfrm = build_tfrm(1000, 160, 160, 1000, "MyApp", [
     {"kind": "checkbox", "id": 1001, "x": 10, "y": 40, "w": 100, "h": 14, "label": "Done"},
 ])
 ```
+
+## Example Projects
+
+### DoneApp
+
+A minimal app demonstrating host-side PalmOS development. Features a form with labels and a checkbox, an Options menu, and an About dialog. All resources generated programmatically using `palm.resources`.
+
+### Breakout
+
+A classic brick-breaker game running on a 160x160 pixel screen. Uses `TimGetTicks()` for frame-rate independent updates, stylus input for paddle control, and direct `WinDrawRectangle`/`WinEraseRectangle` calls for rendering. Demonstrates the game loop pattern with `EvtGetEvent` timeout and `nilEvent` handling.
+
+### tinyGL Models
+
+The dashboard can display 3D models from tinyGL databases (creator `TGL0`). Models use 16.16 fixed-point vertices and triangle strips with 2-value metadata prefix per strip. The viewer renders with Three.js (flat shading, quaternion trackball rotation) and can export to STL.
 
 ## Protocol Stack
 
