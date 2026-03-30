@@ -885,6 +885,10 @@ def _preview_obpj(db) -> dict:
         "type": db_type,
         "version": version,
         "execute": bool(flags & 0x0001),
+        "always_rebuild": bool(flags & 0x0002),
+        "debug": bool(flags & 0x0004),
+        "auto_version": bool(flags & 0x0008),
+        "flags_raw": flags,
         "files": files,
     }
 

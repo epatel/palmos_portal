@@ -383,6 +383,9 @@ function renderPreview(data) {
     html += `<strong>Type:</strong> ${esc(data.type)}\n`;
     html += `<strong>Creator:</strong> ${esc(data.creator)}\n`;
     html += `<strong>Execute:</strong> ${data.execute ? 'On' : 'Off'}\n`;
+    html += `<strong>Always Rebuild:</strong> ${data.always_rebuild ? 'On' : 'Off'}\n`;
+    html += `<strong>Debug:</strong> ${data.debug ? 'On' : 'Off'}\n`;
+    html += `<strong>Auto Version:</strong> ${data.auto_version ? 'On' : 'Off'}\n`;
     html += '</div></div>';
     if (data.files.length) {
       html += '<div class="record-item"><div class="rec-header">Project Files</div>';
