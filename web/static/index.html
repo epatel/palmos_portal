@@ -407,9 +407,17 @@ function renderPreview(data) {
     </div>`;
     html += '</div>';
     if (data.files.length) {
-      html += '<div class="record-item"><div class="rec-header">Project Files</div>';
-      html += '<div class="rec-text" style="font-size:15px;line-height:2">';
-      data.files.forEach(f => { html += `${esc(f)}\n`; });
+      html += '<div class="record-item"><div class="rec-header">Project Files (' + data.file_count + ')</div>';
+      html += '<div style="font-size:15px">';
+      data.files.forEach(f => {
+        // Map filename to database name (remove extension for .c files, keep for .Rsrc)
+        const dbName = f.replace(/\.Rsrc$/, '.Rsrc').replace(/\.c$/, '.c');
+        const projName = data.project_name;
+        const fullName = projName.replace(/[0-9]*$/, '') !== f.split('.')[0] ? f : projName + '.' + f.split('.').slice(-1)[0] === f ? f : f;
+        html += `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0">
+          <a href="#" onclick="event.preventDefault();selectDbByPartialName('${esc(f)}')" style="color:#3498db;text-decoration:none">${esc(f)}</a>
+        </div>`;
+      });
       html += '</div></div>';
     }
     html += '</div>';
@@ -666,6 +674,16 @@ function saveTodo(dbName, idx) {
   .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
   .then(() => { toast('Saved'); loadPreview(dbName); })
   .catch(e => toast(e.message, true));
+}
+
+function selectDbByPartialName(fname) {
+  // Find a database whose name ends with the filename (e.g. "Test2.c" or "Test2.Rsrc")
+  const match = allDbs.find(db => db.name === fname || db.name.endsWith(fname) || (db.name + '.' + fname.split('.').pop()) === fname);
+  if (match) {
+    selectDb(match.name);
+  } else {
+    toast('Database "' + fname + '" not found on device', true);
+  }
 }
 
 // OnboardC project editing
