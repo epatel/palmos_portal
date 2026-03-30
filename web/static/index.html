@@ -373,6 +373,45 @@ function renderPreview(data) {
         <div class="rec-text">${esc(details.trim())}</div></div>`;
     });
     body.innerHTML = html + '</div>';
+  } else if (data.kind === 'rsrc_edit') {
+    window._rsrcName = data.name;
+    document.getElementById('previewMeta').textContent = `Resource file · ${data.resources.length} resources`;
+    let html = '<div class="record-list">';
+    data.resources.forEach(r => {
+      html += '<div class="record-item">';
+      if (r.parsed === 'alert') {
+        html += `<div class="rec-header">Alert (Talt #${r.id}) — ${esc(r.alert_type)}</div>
+          <div class="rec-text" id="talt-view-${r.id}">
+            <strong>Title:</strong> ${esc(r.title)}<br>
+            <strong>Message:</strong> ${esc(r.message)}<br>
+            <strong>Buttons:</strong> ${r.buttons.map(b => esc(b)).join(', ')}
+          </div>
+          <div id="talt-edit-${r.id}" style="display:none">
+            <div style="margin-bottom:6px"><label style="font-size:12px;color:#888">Title</label>
+              <input type="text" class="talt-title" value="${esc(r.title)}" style="width:100%;font-size:14px;padding:4px 8px;border:1px solid #ddd;border-radius:3px"></div>
+            <div style="margin-bottom:6px"><label style="font-size:12px;color:#888">Message</label>
+              <textarea class="talt-msg" style="width:100%;font-size:14px;padding:4px 8px;border:1px solid #ddd;border-radius:3px;min-height:60px">${esc(r.message)}</textarea></div>
+            <div style="margin-bottom:6px"><label style="font-size:12px;color:#888">Buttons (comma-separated)</label>
+              <input type="text" class="talt-btns" value="${r.buttons.map(b => esc(b)).join(', ')}" style="width:100%;font-size:14px;padding:4px 8px;border:1px solid #ddd;border-radius:3px"></div>
+            <div class="rec-actions">
+              <button class="secondary" onclick="cancelTalt(${r.id})">Cancel</button>
+              <button onclick="saveTalt(${r.id}, ${r.alert_type_id})">Save</button>
+            </div>
+          </div>
+          <div class="rec-actions"><button onclick="editTalt(${r.id})">Edit</button></div>`;
+      } else if (r.parsed === 'form') {
+        html += `<div class="rec-header">Form (tFRM #${r.id})</div>
+          <div class="rec-text"><strong>Title:</strong> ${esc(r.title)}<br><strong>Bounds:</strong> ${esc(r.bounds)}</div>`;
+      } else if (r.parsed === 'menubar') {
+        html += `<div class="rec-header">Menu Bar (MBAR #${r.id})</div>
+          <div class="rec-text"><strong>Items:</strong> ${r.items.map(i => esc(i)).join(' → ')}</div>`;
+      } else {
+        html += `<div class="rec-header">${esc(r.type)} #${r.id} (${r.size} bytes)</div>
+          <div class="rec-hex">${r.hex || ''}</div>`;
+      }
+      html += '</div>';
+    });
+    body.innerHTML = html + '</div>';
   } else if (data.kind === 'palmdoc') {
     window._palmdocName = data.name;
     document.getElementById('previewMeta').innerHTML = `PalmDoc · ${data.text.length} chars <button onclick="editPalmDoc()" style="margin-left:8px" id="btnEditDoc">Edit</button>`;
@@ -585,6 +624,33 @@ function saveTodo(dbName, idx) {
   })
   .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
   .then(() => { toast('Saved'); loadPreview(dbName); })
+  .catch(e => toast(e.message, true));
+}
+
+// Talt (Alert) editing
+function editTalt(id) {
+  document.getElementById('talt-view-' + id).style.display = 'none';
+  document.getElementById('talt-edit-' + id).style.display = '';
+}
+function cancelTalt(id) {
+  document.getElementById('talt-view-' + id).style.display = '';
+  document.getElementById('talt-edit-' + id).style.display = 'none';
+}
+function saveTalt(id, alertType) {
+  const el = document.getElementById('talt-edit-' + id);
+  const data = {
+    title: el.querySelector('.talt-title').value,
+    message: el.querySelector('.talt-msg').value,
+    buttons: el.querySelector('.talt-btns').value.split(',').map(s => s.trim()).filter(Boolean),
+    alert_type_id: alertType,
+  };
+  toast('Saving...');
+  fetch('/api/edit-talt/' + encodeURIComponent(window._rsrcName) + '/' + id, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Saved'); loadPreview(window._rsrcName); })
   .catch(e => toast(e.message, true));
 }
 

@@ -657,6 +657,11 @@ async def preview_database(name: str):
                 elif r.res_type in ("tSTR", "tSTL"):
                     app_info["num_strings"] += 1
                 resources.append(rinfo)
+            # For Rsrc-type databases (RsrcEdit files), parse known resource types
+            if db.db_type.strip() == "Rsrc":
+                return {"kind": "rsrc_edit", "name": db.name, "creator": db.creator,
+                        "resources": _parse_rsrc_resources(db)}
+
             return {"kind": "app", "info": app_info, "resources": resources}
 
         # Format-aware record parsing for known database types
@@ -841,6 +846,134 @@ def _preview_address(db) -> dict:
         if entry:
             entries.append(entry)
     return {"kind": "address", "name": db.name, "entries": entries}
+
+
+def _parse_rsrc_resources(db) -> list:
+    """Parse known PalmOS resource types for display."""
+    results = []
+    for r in db.resources:
+        info = {"type": r.res_type, "id": r.res_id, "size": len(r.data)}
+        if r.res_type == "Talt":
+            info.update(_parse_talt(r.data))
+        elif r.res_type == "tFRM":
+            info.update(_parse_tfrm(r.data))
+        elif r.res_type == "MBAR":
+            info.update(_parse_mbar(r.data))
+        else:
+            info["hex"] = r.data[:64].hex()
+        results.append(info)
+    return results
+
+
+def _parse_talt(data: bytes) -> dict:
+    """Parse Talt (Alert) resource."""
+    alert_types = ["Information", "Confirmation", "Warning", "Error"]
+    alert_type = struct.unpack(">H", data[0:2])[0]
+    help_id = struct.unpack(">H", data[2:4])[0]
+    num_buttons = struct.unpack(">H", data[4:6])[0]
+    default_btn = struct.unpack(">H", data[6:8])[0]
+    strings = data[8:].split(b"\x00")
+    title = strings[0].decode("cp1252", errors="replace") if len(strings) > 0 else ""
+    message = strings[1].decode("cp1252", errors="replace") if len(strings) > 1 else ""
+    buttons = []
+    for s in strings[2:]:
+        if s:
+            buttons.append(s.decode("cp1252", errors="replace"))
+    return {
+        "parsed": "alert",
+        "alert_type": alert_types[alert_type] if alert_type < 4 else str(alert_type),
+        "alert_type_id": alert_type,
+        "title": title,
+        "message": message,
+        "buttons": buttons,
+    }
+
+
+def _parse_tfrm(data: bytes) -> dict:
+    """Parse tFRM (Form) resource — extract basic info."""
+    # Form bounds
+    x, y = struct.unpack(">HH", data[0:4])
+    w, h = struct.unpack(">HH", data[4:8])
+    # Find title string (after fixed header, usually near end before padding)
+    # Look for printable ASCII strings
+    title = ""
+    # Search for the form title - it's a null-terminated string in the data
+    for i in range(40, len(data)):
+        if data[i:i+1].isalpha():
+            end = data.index(b"\x00", i) if b"\x00" in data[i:] else len(data)
+            candidate = data[i:end].decode("cp1252", errors="replace")
+            if len(candidate) > 1 and all(c.isprintable() for c in candidate):
+                title = candidate
+                break
+    return {
+        "parsed": "form",
+        "bounds": f"({x},{y}) {w}x{h}",
+        "title": title,
+    }
+
+
+def _parse_mbar(data: bytes) -> dict:
+    """Parse MBAR (Menu Bar) resource — extract menu titles and items."""
+    # Find readable strings in the data
+    menus = []
+    parts = data.split(b"\x00")
+    for p in parts:
+        try:
+            text = p.decode("cp1252").strip()
+            if text and len(text) > 1 and all(c.isprintable() for c in text) and not all(c == 'i' for c in text):
+                menus.append(text)
+        except Exception:
+            pass
+    return {"parsed": "menubar", "items": menus}
+
+
+class TaltEditRequest(BaseModel):
+    title: str
+    message: str
+    buttons: list[str]
+    alert_type_id: int = 0
+
+
+@app.post("/api/edit-talt/{name}/{res_id}")
+async def edit_talt(name: str, res_id: int, req: TaltEditRequest):
+    """Edit a Talt (Alert) resource on the device."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        def _do_edit():
+            from palm.dlp import DB_MODE_READ_WRITE, Resource as DLPResource
+            with device_manager._dlp_lock:
+                dlp = device_manager.dlp
+                handle = dlp.open_db(name, DB_MODE_READ_WRITE)
+                try:
+                    # Build new Talt data
+                    data = struct.pack(">HHHH",
+                        req.alert_type_id, 0,
+                        len(req.buttons), 0)
+                    data += req.title.encode("cp1252", errors="replace") + b"\x00"
+                    data += req.message.encode("cp1252", errors="replace") + b"\x00"
+                    for btn in req.buttons:
+                        data += btn.encode("cp1252", errors="replace") + b"\x00"
+                    # Find and delete old resource, write new
+                    num = dlp.read_open_db_info(handle)
+                    for i in range(num):
+                        res = dlp.read_resource(handle, i)
+                        if res.res_type.strip() == "Talt" and res.res_id == res_id:
+                            from palm.dlp import DLPFuncID, DLPArg
+                            arg_data = struct.pack(">BB", handle, 0)
+                            arg_data += "Talt".encode("ascii")
+                            arg_data += struct.pack(">H", res_id)
+                            dlp._execute(DLPFuncID.DELETE_RESOURCE, [DLPArg(arg_id=0x20, data=arg_data)])
+                            break
+                    dlp.write_resource(handle, DLPResource(
+                        res_type="Talt", res_id=res_id, index=0, data=data,
+                    ))
+                finally:
+                    dlp.close_db(handle)
+        await asyncio.get_event_loop().run_in_executor(None, _do_edit)
+        return {"status": "ok"}
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
 
 
 def _palmdoc_decompress(data: bytes) -> bytes:
