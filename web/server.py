@@ -857,24 +857,31 @@ def _preview_obpj(db) -> dict:
     r = db.resources[0]
     d = r.data
     version = struct.unpack(">H", d[0:2])[0]
+    file_count = struct.unpack(">H", d[2:4])[0]
     flags = struct.unpack(">H", d[8:10])[0]
     creator = d[10:14].decode("ascii", errors="replace").rstrip("\x00")
     db_type = d[14:18].decode("ascii", errors="replace").rstrip("\x00")
     prc_name = d[18:50].split(b"\x00")[0].decode("cp1252", errors="replace")
     project_name = d[50:114].split(b"\x00")[0].decode("cp1252", errors="replace")
 
-    # Find source/resource file references (null-terminated strings in data)
+    # Find source/resource file references (null-terminated strings)
+    # Look for .c, .Rsrc, .h files — skip .obj files (auto-generated)
     files = []
-    for pattern in [b".c\x00", b".Rsrc\x00", b".obj\x00", b".h\x00"]:
-        idx = d.find(pattern)
-        if idx >= 0:
-            # Walk back to find start of filename
+    seen = set()
+    for pattern in [b".c\x00", b".Rsrc\x00", b".h\x00"]:
+        pos = 110
+        while True:
+            idx = d.find(pattern, pos)
+            if idx < 0:
+                break
             start = idx
             while start > 0 and d[start - 1] >= 0x20:
                 start -= 1
             fname = d[start:idx + len(pattern) - 1].decode("cp1252", errors="replace")
-            if fname and fname not in files:
+            if fname and fname not in seen:
                 files.append(fname)
+                seen.add(fname)
+            pos = idx + len(pattern)
 
     return {
         "kind": "obpj",
@@ -884,6 +891,7 @@ def _preview_obpj(db) -> dict:
         "creator": creator,
         "type": db_type,
         "version": version,
+        "file_count": file_count,
         "execute": bool(flags & 0x0001),
         "always_rebuild": bool(flags & 0x0002),
         "debug": bool(flags & 0x0004),
