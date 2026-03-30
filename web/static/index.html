@@ -92,6 +92,10 @@
   .dialog textarea { width:100%; min-height:150px; font-size:15px; line-height:1.5; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:inherit; resize:vertical; }
   .dialog textarea:focus { outline:none; border-color:#3498db; }
   .dialog .dialog-actions { margin-top:12px; display:flex; gap:8px; justify-content:flex-end; }
+  .file-option { padding:10px 12px; border:1px solid #eee; border-radius:4px; margin-bottom:4px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+  .file-option:hover { background:#ebf5fb; border-color:#3498db; }
+  .file-option .file-name { font-size:14px; font-weight:500; }
+  .file-option .file-meta { font-size:12px; color:#999; }
 </style>
 </head>
 <body>
@@ -137,6 +141,27 @@
     </div>
     <div class="preview-body" id="previewBody">
       <div class="preview-placeholder" id="previewPlaceholder">Select a database to preview</div>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-overlay" id="confirmDialog">
+  <div class="dialog">
+    <h3 id="confirmTitle">Confirm</h3>
+    <p id="confirmMessage" style="font-size:15px;margin-bottom:16px"></p>
+    <div class="dialog-actions">
+      <button class="secondary" onclick="closeConfirmDialog(false)">Cancel</button>
+      <button class="danger" id="confirmBtn" onclick="closeConfirmDialog(true)">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-overlay" id="addFileDialog">
+  <div class="dialog">
+    <h3>Add File to Project</h3>
+    <div id="addFileList" style="max-height:300px;overflow-y:auto;margin-bottom:12px"></div>
+    <div class="dialog-actions">
+      <button class="secondary" onclick="closeAddFileDialog()">Cancel</button>
     </div>
   </div>
 </div>
@@ -512,11 +537,11 @@ function clearPreview() {
 }
 
 function pullDb(name) { window.location = '/api/pull/' + encodeURIComponent(name); }
-function deleteDb(name) {
-  if (confirm(`Delete "${name}"?`)) {
-    send({ action: 'delete', name });
-    if (selectedDb === name) clearPreview();
-  }
+async function deleteDb(name) {
+  const ok = await showConfirmDialog('Delete Database', `Delete "${name}" from the device? This cannot be undone.`, 'Delete');
+  if (!ok) return;
+  send({ action: 'delete', name });
+  if (selectedDb === name) clearPreview();
 }
 function startBackup() { send({ action: 'backup' }); showProgress(0, 1); }
 function showProgress(cur, tot) {
@@ -612,8 +637,9 @@ function submitMemoDialog() {
   }
 }
 
-function deleteMemo(recIndex) {
-  if (!confirm('Delete this memo?')) return;
+async function deleteMemo(recIndex) {
+  const ok = await showConfirmDialog('Delete Memo', 'Delete this memo from the device?', 'Delete');
+  if (!ok) return;
   toast('Deleting...');
   fetch('/api/record/' + encodeURIComponent(window._memoDbName) + '/' + recIndex, { method: 'DELETE' })
   .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
@@ -678,9 +704,40 @@ function saveTodo(dbName, idx) {
 }
 
 function addObpjFile() {
-  const fname = prompt('New source filename (e.g. MyFile.c):');
-  if (!fname || !fname.endsWith('.c')) { if (fname) toast('Filename must end with .c', true); return; }
-  toast('Adding file...');
+  // Filter databases: show only TEXt/REAd (.c files) and Rsrc/OnBD (.Rsrc files) not already in project
+  const existing = new Set(window._obpjData.files);
+  const candidates = allDbs.filter(db => {
+    if (existing.has(db.name)) return false;
+    // TEXt/REAd = PalmDoc source files (.c)
+    if (db.db_type.trim() === 'TEXt' && db.creator.trim() === 'REAd') return true;
+    // Rsrc/OnBD = RsrcEdit resource files (.Rsrc) - but only allow the associated type
+    if (db.db_type.trim() === 'Rsrc') return true;
+    return false;
+  });
+
+  const list = document.getElementById('addFileList');
+  if (candidates.length === 0) {
+    list.innerHTML = '<p style="color:#999;font-size:14px;text-align:center;padding:20px">No compatible files found on device.<br><small>Upload .c (PalmDoc) or .Rsrc files first.</small></p>';
+  } else {
+    list.innerHTML = '';
+    candidates.forEach(db => {
+      const kind = db.db_type.trim() === 'TEXt' ? 'Source (.c)' : 'Resources (.Rsrc)';
+      const div = document.createElement('div');
+      div.className = 'file-option';
+      div.innerHTML = `<div><div class="file-name">${esc(db.name)}</div><div class="file-meta">${kind} — ${esc(db.db_type.trim())}/${esc(db.creator.trim())}</div></div>`;
+      div.onclick = () => { closeAddFileDialog(); doAddObpjFile(db.name); };
+      list.appendChild(div);
+    });
+  }
+  document.getElementById('addFileDialog').classList.add('show');
+}
+
+function closeAddFileDialog() {
+  document.getElementById('addFileDialog').classList.remove('show');
+}
+
+function doAddObpjFile(fname) {
+  toast('Adding ' + fname + '...');
   fetch('/api/edit-obpj-files/' + encodeURIComponent(window._obpjData.name), {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ action: 'add', filename: fname })
@@ -690,9 +747,23 @@ function addObpjFile() {
   .catch(e => toast(e.message, true));
 }
 
-function removeObpjFile(fname) {
-  if (!confirm('Remove "' + fname + '" from project?')) return;
-  toast('Removing file...');
+let _confirmResolve = null;
+function showConfirmDialog(title, message, btnText) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMessage').textContent = message;
+  document.getElementById('confirmBtn').textContent = btnText || 'Remove';
+  document.getElementById('confirmDialog').classList.add('show');
+  return new Promise(resolve => { _confirmResolve = resolve; });
+}
+function closeConfirmDialog(result) {
+  document.getElementById('confirmDialog').classList.remove('show');
+  if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
+}
+
+async function removeObpjFile(fname) {
+  const ok = await showConfirmDialog('Remove File', `Remove "${fname}" from the project? This will not delete the database from the device.`, 'Remove');
+  if (!ok) return;
+  toast('Removing ' + fname + '...');
   fetch('/api/edit-obpj-files/' + encodeURIComponent(window._obpjData.name), {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ action: 'remove', filename: fname })
