@@ -374,10 +374,11 @@ function renderPreview(data) {
     });
     body.innerHTML = html + '</div>';
   } else if (data.kind === 'obpj') {
-    document.getElementById('previewMeta').textContent = `OnboardC Project`;
+    window._obpjData = data;
+    document.getElementById('previewMeta').innerHTML = `OnboardC Project <button onclick="editObpj()" id="btnEditObpj" style="margin-left:8px">Edit</button>`;
     let html = '<div class="record-list"><div class="record-item">';
     html += '<div class="rec-header">Project Settings</div>';
-    html += '<div class="rec-text" style="font-size:15px;line-height:2">';
+    html += '<div id="obpj-view"><div class="rec-text" style="font-size:15px;line-height:2">';
     html += `<strong>Project:</strong> ${esc(data.project_name)}\n`;
     html += `<strong>PRC Name:</strong> ${esc(data.prc_name)}\n`;
     html += `<strong>Type:</strong> ${esc(data.type)}\n`;
@@ -387,6 +388,24 @@ function renderPreview(data) {
     html += `<strong>Debug:</strong> ${data.debug ? 'On' : 'Off'}\n`;
     html += `<strong>Auto Version:</strong> ${data.auto_version ? 'On' : 'Off'}\n`;
     html += '</div></div>';
+    html += `<div id="obpj-edit" style="display:none">
+      <div style="display:grid;grid-template-columns:120px 1fr;gap:6px 12px;align-items:center;font-size:14px;margin-bottom:12px">
+        <label>PRC Name:</label><input type="text" id="obpj-prc" value="${esc(data.prc_name)}" style="padding:4px 8px;border:1px solid #ddd;border-radius:3px">
+        <label>Type:</label><input type="text" id="obpj-type" value="${esc(data.type)}" maxlength="4" style="padding:4px 8px;border:1px solid #ddd;border-radius:3px;width:80px">
+        <label>Creator:</label><input type="text" id="obpj-creator" value="${esc(data.creator)}" maxlength="4" style="padding:4px 8px;border:1px solid #ddd;border-radius:3px;width:80px">
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:14px;margin-bottom:12px">
+        <label><input type="checkbox" id="obpj-execute" ${data.execute?'checked':''}> Execute</label>
+        <label><input type="checkbox" id="obpj-rebuild" ${data.always_rebuild?'checked':''}> Always Rebuild</label>
+        <label><input type="checkbox" id="obpj-debug" ${data.debug?'checked':''}> Debug</label>
+        <label><input type="checkbox" id="obpj-autoversion" ${data.auto_version?'checked':''}> Auto Version</label>
+      </div>
+      <div class="rec-actions">
+        <button class="secondary" onclick="cancelObpj()">Cancel</button>
+        <button onclick="saveObpj()">Save</button>
+      </div>
+    </div>`;
+    html += '</div>';
     if (data.files.length) {
       html += '<div class="record-item"><div class="rec-header">Project Files</div>';
       html += '<div class="rec-text" style="font-size:15px;line-height:2">';
@@ -646,6 +665,37 @@ function saveTodo(dbName, idx) {
   })
   .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
   .then(() => { toast('Saved'); loadPreview(dbName); })
+  .catch(e => toast(e.message, true));
+}
+
+// OnboardC project editing
+function editObpj() {
+  document.getElementById('obpj-view').style.display = 'none';
+  document.getElementById('obpj-edit').style.display = '';
+  document.getElementById('btnEditObpj').disabled = true;
+}
+function cancelObpj() {
+  document.getElementById('obpj-view').style.display = '';
+  document.getElementById('obpj-edit').style.display = 'none';
+  document.getElementById('btnEditObpj').disabled = false;
+}
+function saveObpj() {
+  const data = {
+    prc_name: document.getElementById('obpj-prc').value,
+    type: document.getElementById('obpj-type').value,
+    creator: document.getElementById('obpj-creator').value,
+    execute: document.getElementById('obpj-execute').checked,
+    always_rebuild: document.getElementById('obpj-rebuild').checked,
+    debug: document.getElementById('obpj-debug').checked,
+    auto_version: document.getElementById('obpj-autoversion').checked,
+  };
+  toast('Saving...');
+  fetch('/api/edit-obpj/' + encodeURIComponent(window._obpjData.name), {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Saved'); loadPreview(window._obpjData.name); })
   .catch(e => toast(e.message, true));
 }
 

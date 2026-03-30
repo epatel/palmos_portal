@@ -972,6 +972,68 @@ def _parse_mbar(data: bytes) -> dict:
     return {"parsed": "menubar", "items": menus}
 
 
+class ObpjEditRequest(BaseModel):
+    prc_name: str
+    type: str
+    creator: str
+    execute: bool = False
+    always_rebuild: bool = False
+    debug: bool = False
+    auto_version: bool = False
+
+
+@app.post("/api/edit-obpj/{name}")
+async def edit_obpj(name: str, req: ObpjEditRequest):
+    """Edit OnboardC project settings on the device."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        def _do_edit():
+            from palm.dlp import DB_MODE_READ_WRITE, Resource as DLPResource, DLPFuncID, DLPArg
+            with device_manager._dlp_lock:
+                dlp = device_manager.dlp
+                handle = dlp.open_db(name, DB_MODE_READ_WRITE)
+                try:
+                    res = dlp.read_resource(handle, 0)
+                    d = bytearray(res.data)
+
+                    # Update flags at offset 8-9
+                    flags = 0
+                    if req.execute: flags |= 0x0001
+                    if req.always_rebuild: flags |= 0x0002
+                    if req.debug: flags |= 0x0004
+                    if req.auto_version: flags |= 0x0008
+                    struct.pack_into(">H", d, 8, flags)
+
+                    # Update creator at offset 10-13
+                    creator_b = req.creator.encode("ascii")[:4].ljust(4, b"\x00")
+                    d[10:14] = creator_b
+
+                    # Update type at offset 14-17
+                    type_b = req.type.encode("ascii")[:4].ljust(4, b"\x00")
+                    d[14:18] = type_b
+
+                    # Update PRC name at offset 18-49 (32 bytes, null-padded)
+                    prc_b = req.prc_name.encode("cp1252", errors="replace")[:31]
+                    d[18:50] = prc_b.ljust(32, b"\x00")
+
+                    # Delete old resource and write new
+                    arg_data = struct.pack(">BB", handle, 0)
+                    arg_data += b"OBPJ"
+                    arg_data += struct.pack(">H", res.res_id)
+                    dlp._execute(DLPFuncID.DELETE_RESOURCE, [DLPArg(arg_id=0x20, data=arg_data)])
+
+                    dlp.write_resource(handle, DLPResource(
+                        res_type="OBPJ", res_id=res.res_id, index=0, data=bytes(d),
+                    ))
+                finally:
+                    dlp.close_db(handle)
+        await asyncio.get_event_loop().run_in_executor(None, _do_edit)
+        return {"status": "ok"}
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
+
+
 class TaltEditRequest(BaseModel):
     title: str
     message: str
