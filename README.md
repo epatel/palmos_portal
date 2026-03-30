@@ -88,17 +88,11 @@ tfrm = build_tfrm(1000, 160, 160, 1000, "MyApp", [
 
 ## Example Projects
 
-### DoneApp
+Ready-to-install projects in `projects/`:
 
-A minimal app demonstrating host-side PalmOS development. Features a form with labels and a checkbox, an Options menu, and an About dialog. All resources generated programmatically using `palm.resources`.
-
-### Breakout
-
-A classic brick-breaker game running on a 160x160 pixel screen. Uses `TimGetTicks()` for frame-rate independent updates, stylus input for paddle control, and direct `WinDrawRectangle`/`WinEraseRectangle` calls for rendering. Demonstrates the game loop pattern with `EvtGetEvent` timeout and `nilEvent` handling.
-
-### tinyGL Models
-
-The dashboard can display 3D models from tinyGL databases (creator `TGL0`). Models use 16.16 fixed-point vertices and triangle strips with 2-value metadata prefix per strip. The viewer renders with Three.js (flat shading, quaternion trackball rotation) and can export to STL.
+- **breakout** — Brick-breaker game. OnboardC project (source + resources + project file). Push all three files, compile on device.
+- **tinygl** — 3D model viewer app with sample models (Glider1, Plane1). The web dashboard renders these with Three.js and can export to STL.
+- **asciimation** — Star Wars ASCII animation player. Pre-built PRC + data.
 
 ## Protocol Stack
 
