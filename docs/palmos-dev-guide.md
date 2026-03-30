@@ -2,14 +2,14 @@
 
 ## Overview
 
-This guide documents how to create PalmOS applications for a Handspring Visor using the `palm-com` toolchain. Programs are written as C source on the host machine, pushed to the device, and compiled on-device using OnboardC.
+This guide documents how to create PalmOS applications for a Handspring Visor using the `palmos-portal` toolchain. Programs are written as C source on the host machine, pushed to the device, and compiled on-device using OnboardC.
 
 ## Architecture
 
 ```
 Host (Mac/PC)                    Device (Handspring Visor)
 ─────────────                    ────────────────────────
-palm-com CLI/Web UI              OnboardC compiler
+palmos-portal CLI/Web UI              OnboardC compiler
   ├── Create .c.pdb (source)     ├── Compiles C to 68k
   ├── Create .Rsrc.prc (UI)      ├── Links with resources
   ├── Create .proj.prc (project) └── Produces runnable .prc

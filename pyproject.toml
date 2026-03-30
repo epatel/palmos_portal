@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "palm-com"
+name = "palmos-portal"
 version = "0.1.0"
 description = "CLI tool for communicating with PalmOS devices over USB"
 requires-python = ">=3.10"

@@ -1,4 +1,4 @@
-"""Palm-Com web dashboard server."""
+"""PalmOS Portal web dashboard server."""
 
 from __future__ import annotations
 
@@ -296,7 +296,7 @@ class DeviceManager:
 # FastAPI Application
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="Palm-Com Dashboard")
+app = FastAPI(title="PalmOS Portal")
 device_manager = DeviceManager()
 connected_websockets: list[WebSocket] = []
 event_queue: asyncio.Queue = asyncio.Queue()
@@ -1360,7 +1360,7 @@ def run(port: int = 8000):
                 break
 
     url = f"http://localhost:{port}"
-    print(f"Palm-Com Dashboard: {url}")
+    print(f"PalmOS Portal: {url}")
     print("Press HotSync on your Visor to connect.")
     subprocess.Popen(["open", url])
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")

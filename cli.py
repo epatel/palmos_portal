@@ -1,4 +1,4 @@
-"""CLI entry point for palm-com — PalmOS device communication tool."""
+"""CLI entry point for palmos-portal — PalmOS device communication tool."""
 
 from __future__ import annotations
 
@@ -86,7 +86,7 @@ class DeviceSession:
 @click.option("--verbose", "-v", is_flag=True, help="Show protocol debug output")
 @click.pass_context
 def cli(ctx, verbose):
-    """palm-com — communicate with PalmOS devices over USB."""
+    """palmos-portal — communicate with PalmOS devices over USB."""
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
     setup_logging(verbose)

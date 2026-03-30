@@ -1,1 +1,1 @@
-"""Palm-Com web dashboard."""
+"""PalmOS Portal web dashboard."""

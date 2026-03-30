@@ -116,7 +116,7 @@ All protocol layers implemented from scratch based on the pilot-link source code
 ## Project Structure
 
 ```
-palm_com/
+palmos_portal/
 ├── palm/
 │   ├── transport.py    # USB connection, CMP handshake
 │   ├── slp.py          # Serial Link Protocol
