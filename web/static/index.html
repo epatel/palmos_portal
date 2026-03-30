@@ -406,16 +406,17 @@ function renderPreview(data) {
       </div>
     </div>`;
     html += '</div>';
-    if (data.files.length) {
-      html += '<div class="record-item"><div class="rec-header">Project Files (' + data.file_count + ')</div>';
-      html += '<div style="font-size:15px">';
+    if (data.files.length || true) {
+      html += `<div class="record-item"><div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="rec-header" style="margin:0">Project Files (${data.file_count})</div>
+        <button onclick="addObpjFile()" style="font-size:11px">+ Add .c file</button>
+      </div>`;
+      html += '<div style="font-size:15px;margin-top:8px">';
       data.files.forEach(f => {
-        // Map filename to database name (remove extension for .c files, keep for .Rsrc)
-        const dbName = f.replace(/\.Rsrc$/, '.Rsrc').replace(/\.c$/, '.c');
-        const projName = data.project_name;
-        const fullName = projName.replace(/[0-9]*$/, '') !== f.split('.')[0] ? f : projName + '.' + f.split('.').slice(-1)[0] === f ? f : f;
-        html += `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0">
+        const isRsrc = f.endsWith('.Rsrc');
+        html += `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
           <a href="#" onclick="event.preventDefault();selectDbByPartialName('${esc(f)}')" style="color:#3498db;text-decoration:none">${esc(f)}</a>
+          ${!isRsrc ? `<button class="danger" style="padding:1px 6px;font-size:11px;opacity:0.4" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4" onclick="removeObpjFile('${esc(f)}')">Remove</button>` : ''}
         </div>`;
       });
       html += '</div></div>';
@@ -673,6 +674,31 @@ function saveTodo(dbName, idx) {
   })
   .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
   .then(() => { toast('Saved'); loadPreview(dbName); })
+  .catch(e => toast(e.message, true));
+}
+
+function addObpjFile() {
+  const fname = prompt('New source filename (e.g. MyFile.c):');
+  if (!fname || !fname.endsWith('.c')) { if (fname) toast('Filename must end with .c', true); return; }
+  toast('Adding file...');
+  fetch('/api/edit-obpj-files/' + encodeURIComponent(window._obpjData.name), {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ action: 'add', filename: fname })
+  })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Added ' + fname); loadPreview(window._obpjData.name); })
+  .catch(e => toast(e.message, true));
+}
+
+function removeObpjFile(fname) {
+  if (!confirm('Remove "' + fname + '" from project?')) return;
+  toast('Removing file...');
+  fetch('/api/edit-obpj-files/' + encodeURIComponent(window._obpjData.name), {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ action: 'remove', filename: fname })
+  })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Removed ' + fname); loadPreview(window._obpjData.name); })
   .catch(e => toast(e.message, true));
 }
 

@@ -1042,6 +1042,79 @@ async def edit_obpj(name: str, req: ObpjEditRequest):
         return Response(content=str(e), status_code=500)
 
 
+class ObpjFileRequest(BaseModel):
+    action: str  # "add" or "remove"
+    filename: str  # e.g. "Test2.3.c"
+
+
+@app.post("/api/edit-obpj-files/{name}")
+async def edit_obpj_files(name: str, req: ObpjFileRequest):
+    """Add or remove a file from an OnboardC project."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        def _do_edit():
+            from palm.dlp import DB_MODE_READ_WRITE, Resource as DLPResource, DLPFuncID, DLPArg
+            with device_manager._dlp_lock:
+                dlp = device_manager.dlp
+                handle = dlp.open_db(name, DB_MODE_READ_WRITE)
+                try:
+                    res = dlp.read_resource(handle, 0)
+                    d = bytearray(res.data)
+                    file_count = struct.unpack(">H", d[2:4])[0]
+
+                    if req.action == "remove":
+                        # Find the last occurrence of the filename
+                        fname_bytes = req.filename.encode("cp1252") + b"\x00"
+                        idx = d.rfind(fname_bytes)
+                        if idx < 0:
+                            raise ValueError(f"File '{req.filename}' not found in project")
+                        # Find the start of this entry by scanning back for previous null
+                        # The entry starts at the filename
+                        entry_start = idx
+                        # Truncate everything from this entry onwards
+                        d = d[:entry_start]
+                        # Pad with zeros to ensure clean termination
+                        d += b"\x00" * 6
+                        # Decrement file count
+                        struct.pack_into(">H", d, 2, file_count - 1)
+
+                    elif req.action == "add":
+                        if not req.filename.endswith(".c"):
+                            raise ValueError("Only .c files can be added")
+                        # Build a minimal entry: filename + zeroed metadata + .obj name
+                        fname_bytes = req.filename.encode("cp1252") + b"\x00"
+                        obj_name = req.filename.replace(".c", ".obj")
+                        # Minimal metadata template (97 bytes total after filename)
+                        # Zeroed compiler state + obj filename + padding
+                        meta = b"\x00" * 68  # zeroed compiler state
+                        meta += obj_name.encode("cp1252") + b"\x00"
+                        # Pad to reasonable size
+                        meta = meta.ljust(97, b"\x00")
+                        # Strip trailing zeros from current data to find append point
+                        while len(d) > 114 and d[-1] == 0 and d[-2] == 0:
+                            d = d[:-1]
+                        d += b"\x00"  # separator
+                        d += fname_bytes + meta
+                        # Increment file count
+                        struct.pack_into(">H", d, 2, file_count + 1)
+
+                    # Delete old resource and write new
+                    arg_data = struct.pack(">BB", handle, 0)
+                    arg_data += b"OBPJ"
+                    arg_data += struct.pack(">H", res.res_id)
+                    dlp._execute(DLPFuncID.DELETE_RESOURCE, [DLPArg(arg_id=0x20, data=arg_data)])
+                    dlp.write_resource(handle, DLPResource(
+                        res_type="OBPJ", res_id=res.res_id, index=0, data=bytes(d),
+                    ))
+                finally:
+                    dlp.close_db(handle)
+        await asyncio.get_event_loop().run_in_executor(None, _do_edit)
+        return {"status": "ok"}
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
+
+
 class TaltEditRequest(BaseModel):
     title: str
     message: str
