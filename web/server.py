@@ -657,6 +657,10 @@ async def preview_database(name: str):
                 elif r.res_type in ("tSTR", "tSTL"):
                     app_info["num_strings"] += 1
                 resources.append(rinfo)
+            # OnboardC project file
+            if db.db_type.strip() == "Proj" and db.creator.strip() == "OnBD":
+                return _preview_obpj(db)
+
             # For Rsrc-type databases (RsrcEdit files), parse known resource types
             if db.db_type.strip() == "Rsrc":
                 return {"kind": "rsrc_edit", "name": db.name, "creator": db.creator,
@@ -846,6 +850,43 @@ def _preview_address(db) -> dict:
         if entry:
             entries.append(entry)
     return {"kind": "address", "name": db.name, "entries": entries}
+
+
+def _preview_obpj(db) -> dict:
+    """Parse OnboardC project file (OBPJ resource)."""
+    r = db.resources[0]
+    d = r.data
+    version = struct.unpack(">H", d[0:2])[0]
+    flags = struct.unpack(">H", d[8:10])[0]
+    creator = d[10:14].decode("ascii", errors="replace").rstrip("\x00")
+    db_type = d[14:18].decode("ascii", errors="replace").rstrip("\x00")
+    prc_name = d[18:50].split(b"\x00")[0].decode("cp1252", errors="replace")
+    project_name = d[50:114].split(b"\x00")[0].decode("cp1252", errors="replace")
+
+    # Find source/resource file references (null-terminated strings in data)
+    files = []
+    for pattern in [b".c\x00", b".Rsrc\x00", b".obj\x00", b".h\x00"]:
+        idx = d.find(pattern)
+        if idx >= 0:
+            # Walk back to find start of filename
+            start = idx
+            while start > 0 and d[start - 1] >= 0x20:
+                start -= 1
+            fname = d[start:idx + len(pattern) - 1].decode("cp1252", errors="replace")
+            if fname and fname not in files:
+                files.append(fname)
+
+    return {
+        "kind": "obpj",
+        "name": db.name,
+        "project_name": project_name,
+        "prc_name": prc_name,
+        "creator": creator,
+        "type": db_type,
+        "version": version,
+        "execute": bool(flags & 0x0001),
+        "files": files,
+    }
 
 
 def _parse_rsrc_resources(db) -> list:

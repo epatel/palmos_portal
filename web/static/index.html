@@ -373,6 +373,25 @@ function renderPreview(data) {
         <div class="rec-text">${esc(details.trim())}</div></div>`;
     });
     body.innerHTML = html + '</div>';
+  } else if (data.kind === 'obpj') {
+    document.getElementById('previewMeta').textContent = `OnboardC Project`;
+    let html = '<div class="record-list"><div class="record-item">';
+    html += '<div class="rec-header">Project Settings</div>';
+    html += '<div class="rec-text" style="font-size:15px;line-height:2">';
+    html += `<strong>Project:</strong> ${esc(data.project_name)}\n`;
+    html += `<strong>PRC Name:</strong> ${esc(data.prc_name)}\n`;
+    html += `<strong>Type:</strong> ${esc(data.type)}\n`;
+    html += `<strong>Creator:</strong> ${esc(data.creator)}\n`;
+    html += `<strong>Execute:</strong> ${data.execute ? 'On' : 'Off'}\n`;
+    html += '</div></div>';
+    if (data.files.length) {
+      html += '<div class="record-item"><div class="rec-header">Project Files</div>';
+      html += '<div class="rec-text" style="font-size:15px;line-height:2">';
+      data.files.forEach(f => { html += `${esc(f)}\n`; });
+      html += '</div></div>';
+    }
+    html += '</div>';
+    body.innerHTML = html;
   } else if (data.kind === 'rsrc_edit') {
     window._rsrcName = data.name;
     document.getElementById('previewMeta').textContent = `Resource file · ${data.resources.length} resources`;
