@@ -8,6 +8,8 @@
 
 ---
 
+<img src="screenshot.jpg" height="480" alt="Screenshot">
+
 A Python toolkit for communicating with PalmOS devices over USB. Built from scratch — implements the full HotSync protocol stack (SLP, PADP, DLP) to read and write databases and applications to a Handspring Visor.
 
 Includes a web dashboard with real-time device management, 3D model viewer, and a PalmOS app development toolchain.
