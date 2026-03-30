@@ -1,0 +1,288 @@
+<html>
+<head>
+<title>tinyGL - 3D modeling on PalmOS</title>
+</head>
+<body>
+<body text=#000000 bgcolor=#ffffff link=#c00000 vlink=#701010 alink=#ff0000>
+<font face=verdana,helvetica,arial size=2>
+<table width=100%>
+<tr>
+<td>
+<font size=2>
+&copy; 2000 Edward Patel
+</td>
+<td align=right>
+<font size=2>
+Stockholm, 27 March 2000
+</td>
+</table>
+<hr noshade width=100%>
+<p>
+<table align=right border=0 cellspacing=0 cellpadding=0>
+<tr>
+<td rowspan=5 width=20>
+</td>
+</tr>
+<tr>
+<td colspan=3>
+<p>
+<font size=2><center>PalmV running tinyGL</center>
+<p>
+</td>
+<td rowspan=5 width=20>
+</td>
+</tr>
+<tr>
+<td rowspan=3><img src=left.gif></td>
+<td><img src=top.gif></td>
+<td rowspan=3><img src=right.gif></td>
+</tr>
+<tr>
+<td><img src=screen.gif></td>
+</tr>
+<tr>
+<td><img src=bot.gif></td>
+</tr>
+<tr>
+<td colspan=5>
+<p>
+<font size=2><center><a href=tinyGL21.zip>download</a></center>
+<p>
+</td>
+</tr>
+</table>
+<table>
+<td rowspan=2><img src=icon.gif align=top></td>
+<td align=center>
+<h2>tinyGL v2.1</h2>
+</td>
+<tr>
+<td>
+<font size=1>
+<b>*NOTE*</b> This should not be mistaken for the TinyGL library made by Fabrice Bellard (found <a href=http://www-stud.enst.fr/~bellard/TinyGL.html>here</a>) that might also work on the PalmOS, if someone will do the port.
+</td>
+</table>
+<font size=2>
+<blockquote>
+tinyGL is a <i>*very*</i> tiny 3D modeling software for the PalmOS. Can it be smaller and still be useful? or is this really useful? Who knows?
+<p>
+I have done this mostly for fun, but also because I really like the Palm and do work with <i>*real*</i> 3D applications. I've been missing some  useful 3D thing on the Palm, like a quick-n-dirty-tiny-3D-modeling thing, that one might have along in the Palm <i>anywhere</i>, like the beach. No one else seem crazy enough to do it so I might have a go at it and this is now my second distribution. Due to the fact that I have spent some time on this project I have now made it a shareware version.
+<p>
+The Palm isn't really designed to do stuff like this but if one just sticks to the basics it might just work, at least to be fun. Don't expect to do large landscape models with tinyGL, on the tops one might make a model with around a houndred vertexes. Nurbs and Particule system will maybe come in future version when the hardware will allow for it ;o) GUI design is for me a theory of making things invisible, like all good things are, things are there when one needs them. For now I have tried to have a balance between memory limitations, calculation speed and drawing speed. I think I have done some good choices so far.
+<p>
+The first version was just for testing the concept and working with the UI that is <i>*very*</i> tiny. In this second distribution I have added several new features like multiple models, export, undo and an off-host viewer. I have also worked on the method for doing exporting as plugins, not trivial but at least possible (it would even be possible to generate OpenFlight files).
+<p>
+It is basically built in five parts. First a fix-number library (API) to do <i>fast</i> math. Second a 3D library (API), like a tiny version of <a href=http://www.opengl.org>OpenGL</a> with just the things I need for this (the header file can be found <a href=tinyGL.h.txt>here</a>). The third is this little 3D modeling creating thing. Fourth the plugin method for exporting and fifth the off-host viewer.
+<p>
+Are you interested in doing 3D programming on the Palm? Take a look at <a href=http://www.dsbox.com/minigl.html>miniGL</a>, an effort to port the OpenGL API to Palm. If you want to learn more about 3D graphics and real-time rendering please look <a href=http://www.realtimerendering.com>here</a>.
+</blockquote>
+<h2>The tiny UI</h2>
+<blockquote>
+The user interface for tinyGL is not a feast of features but rather a tiny selection of things to do fiddling around with a model trying to be creative. The UI is also not a traditional Palm UI.
+<p>
+Just for fun (like most of tinyGL is done) I have put in a <i>left-handed</i> option. But for this short description I will be writing as if this option is set to off.
+<p>
+In this second version I have added two <i>normal</i> menus. 
+<p>
+<center>
+<table cellpadding=10>
+<td>
+<img src=m1.gif>
+</td>
+<td valign=top>
+<img src=m2.gif>
+</td>
+</table>  
+</center>
+<p>
+Most menu items are self explained I guess, but <b>Export...</b> and <b>Model info...</b> might just need a short introduction. <b>Export...</b> will bring up a small dialog where one can choose an <i>export</i> method. The export methods are plugins (code resources) that communicates with the tiny off-host viewer. <b>Model info...</b> will display the name and <i>statistics</i>, number of strips etc, of the model. Under <b>Preferences...</b> one can choose a Grid option, a Left handed option, and an option to display/hide the origo axis.
+<p>
+I have placed a couple of menus in the four corners. These reflects the different states the UI can be in. One interacts with the UI by taping with the pen on different words and by taping and dragging in the view.
+<p>
+<center>
+<table cellpadding=10>
+<tr>
+<td valign=top align=right>
+<img src=m3.gif>
+</td>
+<td valign=top>
+<font size=2>In the upper right corner there are two menus. The top one reflects four different viewing modes. <b>PERSP</b>, for perspective viewing (this mode has no editing possibilities). <b>FRONT</b>, for an orthogonal view from Z. <b>SIDE</b>, for an orthogonal view along X. <b>ABOVE</b>, for an orthogonal view from Y.
+<p>
+The menu below reflects four view modifiers and strip/vertex moving features. <b>PAN</b>, for translating (panning) the view. <b>ROT</b>, for rotating the view in <b>PERSP</b>. <b>ADD</b>, for inserting new vertexes in a triangle strip. <b>MOVE</b>, for moving a whole strip or individual vertexes. <b>TRIM</b>, is for moving individual vertexes without having to tap <b>SELECT</b>. These modes can be changes by changing view states or other events so it is important that one keeps an eye on these to identify which mode is active.
+</td>
+</tr>
+<tr>
+<td colspan=2>
+<font size=2>
+On the right side is a small circle that can be dragged up and down. This is used for zooming in and out.
+</td>
+</tr>
+<tr>
+<td valign=top>
+<img src=m4.gif>
+<br>
+<img src=m5.gif>
+</td>
+<td>
+<font size=2>
+In the upper left corner are menus for working with a triangle strip. Triangle strips are the basic building element in tinyGL. A triangle strip is an efficient way of specifying a set of triangles for 3D graphics system. If you do not know anything about this and still want to use tinyGL please read about this some where else because I feel that this is beyond the scope of my work. The top menu item says either <b>ADD</b> or <b>NEXT</b>, this can be a bit confusing because each tap on this will select the <b>NEXT</b> strip in the model. At one place (when one has come to the begining of the set of strips) will <b>ADD</b> be active. If one now selects a viewing mode other than <b>PERSP</b> and then <b>ADD</b> below <b>PERSP</b> one is able to insert a new vertex in a new triangle strip. When <b>NEXT</b> is active will <b>ADD</b> and <b>DO</b> be visible below. By selecting (and activating) <b>ADD</b> will the last edge be visible and showing the last two vertexes in the strip and where the next triangle can be added. At the same time will <b>ADD</b> in the view modifiers be available. Then taping on and holding down the pen on DO will bring up a small menu with a small set of editing features. 
+</td>
+</tr>
+<tr>
+<td valign=top>
+<img src=m6.gif>
+</td>
+<td valign=top>
+<font size=2>
+The first is a <b>HIDE</b>/<b>SHOW</b> toggle that can be used for making parts of the model invisible during editing on other parts. 
+<p>
+<b>WALL</b>, is for making a wall from the contour of the current triangle strip. The menu will be visible and the <b>WALL</b> will be selected until one tap in the editing view. Keep the pen down and move the newly created rim of the wall. As an exercise try to make a circle in the <b>FRONT</b> view, change to <b>SIDE</b>, select <b>WALL</b> and drag out to the right for making a pipe.
+<p>
+<b>MOVE ORIGO</b>, is for moving the origo to define the center when doing a <b>SCALE</b>, <b>ROTATE</b> or <b>MIRROR</b>. As for <b>WALL</b> will the menu be visible and the function (except <b>MIRROR</b>) be selected until one tap in the editing view. By dragging up/down one changes the angle of rotation. Scaling can be done either in <b>2D</b> or <b>3D</b>, the 2D will be scaling in the current viewing plane and with freedom in both height and width. The 3D form is a uniform scaling in all 3 dimensions by dragging up/down. 
+<p>
+The mirroring will create a copy of the selected strip and mirror it in either <b>LR</b> (left-right) or <b>UD</b> (up-down) from the current viewing plane. 
+<p>
+<b>COPY</b> makes a copy of a strip. 
+</td>
+</tr>
+<tr>
+<td valign=top align=center>
+<img src=m7.gif>
+</td>
+<td>
+<font size=2>
+When <b>NEXT</b> is selected will <b>SELECT</b> be available top center in the window. This is for selecting (picking) vertexes directly. Note that selecting a vertex when a vertex is already selected and <b>MOVE</b> is active will move the vertex to this picked vertex. Selecting a vertex when <b>ADD</b> is active will insert a new vertex in the current strip with this picked vertex coordinates.
+</td>
+</tr>
+<tr>
+<td valign=top align=right>
+<img src=m8.gif>
+</td>
+<td>
+<font size=2>
+In the lower right corner will <b>DEL</b> be visible when <b>NEXT</b> is active. With this one can delete a triangle strips last vertex if it is selected. If no vertex is selected will the whole strip be deleted.
+</td>
+</tr>
+<tr>
+<td valign=top>
+<img src=m9.gif>
+</td>
+<td valign=top>
+<font size=2>
+In the lower left corner is <b>REND</b> visible. By taping on this will render the view with a quick-n-dirty <a href=rend.gif>shading</a>.
+</td>
+</tr>
+<tr>
+<td valign=top>
+<img src=m10.gif>
+</td>
+<td valign=top>
+<font size=2>
+When one has done a <b>MOVE</b> will <b>UNDO</b> be visible above <b>REND</b>. This is for undoing a move that went bad or was done by mistake.
+</td>
+</tr>
+</table>
+</center>
+<p>
+<p>
+
+<p>
+This was just a short quick-start. The creative part you have to supply yourself. Good practice like when to use wall and mirror ie. one has to practice.
+<p>
+</blockquote>
+<h2>The tiny viewer</h2>
+<blockquote>
+<center>
+<a href=tglv.gif><img border=0 src=tglvt.gif></a>
+</center>
+<p>
+The tinyGL Viewer is a small Win32 application based on OpenGL. I have implemented it with GLUT so I might port it to Mac and Linux in the future (or maybe someone else). The viewer is listening on the serial port for information sent from tinyGL. It uses <b>COM1</b> as the default port but it is possible to use another by specifying it at startup of the viewer. (Remember to disable HotSync before starting tglv.exe, otherwise has HotSync reserved the serial port)
+<p>
+<blockquote>
+<font size=3>
+<pre>
+c:\>tglv.exe COM2
+</pre>
+</blockquote>
+<font size=2>
+<p>
+The communication between the viewer and tinyGL is not handshaken. On slow machines this could be a problem but I haven't had any problems myself so far.
+<p>
+Requirements for the viewer are Windows9x/NT, OpenGL and GLUT. For .dlls see <a href=http://www.opengl.org/Downloads/Downloads.html>http://www.opengl.org/Downloads/Downloads.html</a>
+<p>
+tinyGL can either send a model for viewing or generate a file. The generated files will be created in the "Exports" directory. For example code see the tGL_ex.zip, toVRML.zip, toOpenGL.zip and toDXF.zip contained in the distribution. The toVRML.zip contains the source code for the plugin that was used for exporting <a href=Glider1.wrl>this</a> model. toOpenGL.zip contains the source for a plugin that generates a "C" file with OpenGL calls. toDXF.zip contains the source for the plugin that exports the 3D model to a DXF file.
+<p>
+</blockquote>
+<p>
+<h3>Legal</h3>
+<blockquote>
+tinyGL 3D modeling software for Palm
+<br>
+Copyright (C) 2000 Edward Patel, All rights reserved.
+<p>
+This software is Shareware which means that you can use it legally for
+42 days free of charge to evaluate it. If during, or at the end of
+that period you decide that you would like to continue using it, then
+you have to register your copy.
+<p>
+A registration will license you to use your copy of this
+software, will support work on future versions, new features and fixes.
+<p>
+<table width=90%>
+<td>
+<font size=2>
+Registration can be done at <a href=http://www.palmgear.com>PalmGear H.Q.</a> Please specify the Registration ID for a personal registration code.
+</td>
+<td valign=top>
+<a href=http://www2.viaweb.com/pilotgearsw/tiletechnology.html><img border=0 src=PGHQ.jpg></a>
+</td>
+<td valign=top>
+<FORM METHOD=POST
+ACTION="https://st2.yahoo.com/cgi-bin/wg-order?pilotgearsw+tinygl"><img
+src="http://store1.yimg.com/Img/trans_1x1.gif"  HEIGHT=1 WIDTH=10
+BORDER=0><img src="http://store1.yimg.com/Img/trans_1x1.gif" HEIGHT=1
+WIDTH=10 BORDER=0><INPUT NAME=vwitem TYPE=HIDDEN VALUE="tinygl"><INPUT
+NAME=vwcatalog TYPE=HIDDEN VALUE="PILOTGEARSW"><INPUT TYPE=SUBMIT VALUE="Add
+To Cart"></FORM>
+</td>
+</table>
+<p>
+This software may be freely distributed subject to, but not limited to, the
+following terms: This software may not be sold or resold, distributed as a
+part of any commercial package, used in a commercial environment, used or
+distributed in support of a commercial service, or used or distributed to
+support any kind of profit-generating activity, even if it is being
+distributed freely.
+<p>
+If you would like to distribute this software as part of a shareware
+distribution, magazine, book, CD-ROM, etc. please contact the Author for
+permission.
+<p>
+All commercial use interests in this software should be directed to the
+Author, too.
+<p>
+THE AUTHOR MAKES NO REPRESENTATIONS OR WARRANTIES ABOUT
+THE SUITABILITY OF THE SOFTWARE, EITHER EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR
+NON-INFRINGEMENT. THE AUTHOR SHALL NOT BE LIABLE FOR ANY
+DAMAGES SUFFERED BY ANYBODY AS A RESULT OF USING, MODIFYING
+OR DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
+</blockquote>
+<p>
+Have fun!
+<br>
+Edward
+<p>
+<hr noshade width=100%>
+<font size=1>
+<b>contact:</b><br>
+e-mail <a href=mailto:edward.patel@tiletech.e.se>edward.patel@tiletech.e.se</a><br>
+<p>
+</body>
+</html>
+</body>
+</html>
+
+
+

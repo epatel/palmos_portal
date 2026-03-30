@@ -1,0 +1,77 @@
+/*
+ * a TINY graphics library.
+ *
+ * Copyright (c) 2000, Edward Patel, All rights reserved.
+ *
+ */
+
+#ifndef __TINYGL_H__
+#define __TINYGL_H__
+
+#ifndef __PILOT_H__
+#include <Pilot.h>
+#endif /* __PILOT_H__ */
+
+#include "fixlib.h"
+
+Boolean tglFilterEvent(const EventType *pevt);
+void tglInit();
+void tglShowScreen(Boolean f);
+void tglDoubleBuffer(Boolean f);
+void tglClear();
+void tglCopy();
+void tglSwap();
+void tglViewport(short x, short y, short w, short h);
+
+void tglLineScreen(short x1, 
+		   short y1, 
+		   short x2, 
+		   short y2);
+
+void tglPointScreen(short x1, 
+		    short y1, 
+		    short r);
+
+typedef fix_t vector_t[4];
+
+Boolean tglPushMatrix();
+Boolean tglPopMatrix();
+void tglStipple(short s);
+void tglIdent();
+void tglScale(fix_t s);
+void tglTranslate(fix_t x, fix_t y, fix_t z);
+void tglRotX(fix_t a);
+void tglRotY(fix_t a);
+void tglRotZ(fix_t a);
+void tglFrustum(fix_t w, fix_t h, fix_t n, fix_t f);
+void tglOrtho(fix_t w, fix_t h, fix_t n, fix_t f);
+void tglStipple(short s);
+void tglLine(vector_t p1, vector_t p2);
+void tglPoint(vector_t v);
+Boolean tglPickPoint(vector_t p, short x, short y, fix_t *zbv);
+void tglLineStrip(vector_t *t, short num);
+void tglTriangleStrip(vector_t *t, short num);
+void tglLineIndexedStrip(vector_t *t, short *index, short num);
+short tglPickTriangleStrip(vector_t *t, short num, short x, short y);
+void tglTriangleIndexedStrip(vector_t *t, short *index, short num);
+short tglPickTriangleIndexedStrip(vector_t *t, 
+				  short *index, 
+				  short num,
+				  short x, 
+				  short y);
+typedef struct {
+  short x,y;
+  fix_t z;
+  Boolean ok;
+} proj_entry;
+
+void tglProjPoints(vector_t *v, short num, proj_entry *pr);
+void tglInvertString(Boolean f);
+/* NOTE! These two has x as character pos in line and y as pixel line */
+  void tglPutString(short x, short y, char *str);
+  void tglPutInt(short x, short y, unsigned int num);
+/* NOTE! An Icon is 16x16 bits and x and y is icon pos. 10x10 */
+void tglPutIcon(short x, short y, unsigned char *icon, Boolean inv);
+
+#endif /* __TINYGL_H__ */
+
