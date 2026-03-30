@@ -153,6 +153,8 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 let ws, isConnected = false, allDbs = [], selectedDb = null;
@@ -375,8 +377,8 @@ function renderPreview(data) {
     window._palmdocName = data.name;
     document.getElementById('previewMeta').innerHTML = `PalmDoc · ${data.text.length} chars <button onclick="editPalmDoc()" style="margin-left:8px" id="btnEditDoc">Edit</button>`;
     body.innerHTML = `<div class="record-list">
-      <div class="record-item" id="palmdoc-view">
-        <pre class="rec-text" style="font-family:monospace;font-size:14px;tab-size:4">${esc(data.text)}</pre>
+      <div class="record-item" id="palmdoc-view" style="padding:0;overflow:hidden">
+        <pre style="margin:0"><code class="language-${data.language || 'plaintext'}" style="font-size:14px;tab-size:4;border-radius:6px">${esc(data.text)}</code></pre>
       </div>
       <div id="palmdoc-editor" style="display:none;padding:8px">
         <textarea id="palmdocText" style="width:100%;height:calc(100vh - 200px);font-family:monospace;font-size:14px;tab-size:4;padding:10px;border:1px solid #ddd;border-radius:4px;resize:none">${esc(data.text)}</textarea>
@@ -386,6 +388,7 @@ function renderPreview(data) {
         </div>
       </div>
     </div>`;
+    hljs.highlightAll();
   } else if (data.kind === 'records') {
     document.getElementById('previewMeta').textContent = `${data.type} / ${data.creator} - ${data.records.length} records`;
     let html = '<div class="record-list">';
