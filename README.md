@@ -2,7 +2,7 @@
 
 # palmos-portal
 
-> A friend mentioned [tinyGL](https://web.archive.org/web/20010131070900/http://www.ardiri.com/index.php?ression=palm&category=tinyGL) — a 3D modeling app I wrote for PalmOS back in 2000 — and I happened to find my old Handspring Visor in a box. Remarkably, it still worked (thank you, AAA batteries). One thing led to another: I got Claude to reverse-engineer the USB HotSync protocol from scratch, build a web dashboard, decode the tinyGL model format, and render those 25-year-old 3D models in a browser. Then we pushed it further — writing a Breakout game in C on a modern Mac and compiling it on the Palm. The whole thing was built in a single session.
+> A friend mentioned [tinyGL](https://memention.com/edward/tinygl/) — a 3D modeling app I wrote for PalmOS back in 2000 — and I happened to find my old Handspring Visor in a box. Remarkably, it still worked (thank you, AAA batteries). One thing led to another: I got Claude to reverse-engineer the USB HotSync protocol from scratch, build a web dashboard, decode the tinyGL model format, and render those 25-year-old 3D models in a browser. Then we pushed it further — writing a Breakout game in C on a modern Mac and compiling it on the Palm. The whole thing was built in a single session.
 >
 > — *Edward Patel*
 
