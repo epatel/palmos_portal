@@ -371,6 +371,21 @@ function renderPreview(data) {
         <div class="rec-text">${esc(details.trim())}</div></div>`;
     });
     body.innerHTML = html + '</div>';
+  } else if (data.kind === 'palmdoc') {
+    window._palmdocName = data.name;
+    document.getElementById('previewMeta').innerHTML = `PalmDoc · ${data.text.length} chars <button onclick="editPalmDoc()" style="margin-left:8px" id="btnEditDoc">Edit</button>`;
+    body.innerHTML = `<div class="record-list">
+      <div class="record-item" id="palmdoc-view">
+        <pre class="rec-text" style="font-family:monospace;font-size:14px;tab-size:4">${esc(data.text)}</pre>
+      </div>
+      <div id="palmdoc-editor" style="display:none;padding:8px">
+        <textarea id="palmdocText" style="width:100%;height:calc(100vh - 200px);font-family:monospace;font-size:14px;tab-size:4;padding:10px;border:1px solid #ddd;border-radius:4px;resize:none">${esc(data.text)}</textarea>
+        <div class="rec-actions" style="margin-top:8px">
+          <button class="secondary" onclick="cancelPalmDoc()">Cancel</button>
+          <button onclick="savePalmDoc()">Save</button>
+        </div>
+      </div>
+    </div>`;
   } else if (data.kind === 'records') {
     document.getElementById('previewMeta').textContent = `${data.type} / ${data.creator} - ${data.records.length} records`;
     let html = '<div class="record-list">';
@@ -567,6 +582,43 @@ function saveTodo(dbName, idx) {
   })
   .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
   .then(() => { toast('Saved'); loadPreview(dbName); })
+  .catch(e => toast(e.message, true));
+}
+
+// PalmDoc editing
+function editPalmDoc() {
+  document.getElementById('palmdoc-view').style.display = 'none';
+  document.getElementById('palmdoc-editor').style.display = '';
+  document.getElementById('btnEditDoc').disabled = true;
+  const ta = document.getElementById('palmdocText');
+  ta.focus();
+  // Allow Tab key in textarea
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = ta.selectionStart, end = ta.selectionEnd;
+      ta.value = ta.value.substring(0, s) + '\t' + ta.value.substring(end);
+      ta.selectionStart = ta.selectionEnd = s + 1;
+    }
+  });
+}
+
+function cancelPalmDoc() {
+  document.getElementById('palmdoc-view').style.display = '';
+  document.getElementById('palmdoc-editor').style.display = 'none';
+  document.getElementById('btnEditDoc').disabled = false;
+}
+
+function savePalmDoc() {
+  const text = document.getElementById('palmdocText').value;
+  toast('Saving...');
+  fetch('/api/edit-palmdoc/' + encodeURIComponent(window._palmdocName), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ text })
+  })
+  .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
+  .then(() => { toast('Saved'); loadPreview(window._palmdocName); })
   .catch(e => toast(e.message, true));
 }
 

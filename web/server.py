@@ -669,6 +669,8 @@ async def preview_database(name: str):
             return _preview_todo(db)
         elif creator == "addr":
             return _preview_address(db)
+        elif db.db_type.strip() == "TEXt" and creator == "REAd":
+            return _preview_palmdoc(db)
 
         # Generic record database — try to show as text
         records = []
@@ -839,6 +841,114 @@ def _preview_address(db) -> dict:
         if entry:
             entries.append(entry)
     return {"kind": "address", "name": db.name, "entries": entries}
+
+
+def _palmdoc_decompress(data: bytes) -> bytes:
+    """Decompress PalmDoc LZ77 compressed text."""
+    out = bytearray()
+    i = 0
+    while i < len(data):
+        c = data[i]; i += 1
+        if c == 0:
+            out.append(c)
+        elif 1 <= c <= 8:
+            out.extend(data[i:i + c]); i += c
+        elif c < 0x80:
+            out.append(c)
+        elif c >= 0xC0:
+            out.append(0x20); out.append(c ^ 0x80)
+        else:
+            if i < len(data):
+                n = data[i]; i += 1
+                dist = ((c << 8) | n) >> 3 & 0x7FF
+                count = (n & 7) + 3
+                for _ in range(count):
+                    out.append(out[-dist])
+    return bytes(out)
+
+
+def _preview_palmdoc(db) -> dict:
+    """Parse PalmDoc (TEXt/REAd) database — used by OnboardC for source files."""
+    if not db.records:
+        return {"kind": "palmdoc", "name": db.name, "text": "", "language": ""}
+
+    # Record 0: header
+    h = db.records[0].data
+    version = struct.unpack(">H", h[0:2])[0]
+    text_length = struct.unpack(">I", h[4:8])[0]
+
+    # Records 1+: text data
+    text_parts = []
+    for r in db.records[1:]:
+        if version == 2:
+            text_parts.append(_palmdoc_decompress(r.data))
+        else:
+            text_parts.append(r.data)
+    raw = b"".join(text_parts)[:text_length]
+    text = raw.decode("cp1252", errors="replace")
+
+    # Detect language from filename
+    name = db.name
+    language = ""
+    if name.endswith(".c") or name.endswith(".h"):
+        language = "c"
+    elif name.endswith(".py"):
+        language = "python"
+
+    return {"kind": "palmdoc", "name": db.name, "text": text, "language": language}
+
+
+@app.post("/api/edit-palmdoc/{name}")
+async def edit_palmdoc(name: str, req: EditRequest):
+    """Edit a PalmDoc text database on the device."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        def _do_edit():
+            from palm.dlp import DB_MODE_READ_WRITE, Record as DLPRecord
+            with device_manager._dlp_lock:
+                dlp = device_manager.dlp
+                handle = dlp.open_db(name, DB_MODE_READ_WRITE)
+                try:
+                    # Read existing header record
+                    header_rec = dlp.read_record(handle, 0)
+                    num_recs = dlp.read_open_db_info(handle)
+
+                    # Delete old text records (keep header at index 0)
+                    from palm.dlp import DLPFuncID, DLPArg
+                    for i in range(1, num_recs):
+                        rec = dlp.read_record(handle, 1)  # always index 1 since we keep deleting
+                        arg_data = struct.pack(">BBI", handle, 0, rec.unique_id)
+                        dlp._execute(DLPFuncID.DELETE_RECORD, [DLPArg(arg_id=0x20, data=arg_data)])
+
+                    # Encode new text
+                    text_data = req.text.encode("cp1252", errors="replace")
+                    rec_size = 4096
+
+                    # Update header: version=1, length, num_recs, rec_size
+                    num_text_recs = max(1, (len(text_data) + rec_size - 1) // rec_size)
+                    new_header = struct.pack(">HHIHHI",
+                        1, 0, len(text_data), num_text_recs, rec_size, 0)
+                    # Pad header to original size
+                    new_header = new_header.ljust(len(header_rec.data), b"\x00")
+                    dlp.write_record(handle, DLPRecord(
+                        index=0, attributes=header_rec.attributes & 0x0F,
+                        unique_id=header_rec.unique_id, data=new_header,
+                    ))
+
+                    # Write text records
+                    for i in range(num_text_recs):
+                        chunk = text_data[i * rec_size:(i + 1) * rec_size]
+                        dlp.write_record(handle, DLPRecord(
+                            index=0, attributes=0, unique_id=0, data=chunk,
+                        ))
+                finally:
+                    dlp.close_db(handle)
+
+        await asyncio.get_event_loop().run_in_executor(None, _do_edit)
+        return {"status": "ok"}
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
 
 
 @app.get("/api/model/{name}")
