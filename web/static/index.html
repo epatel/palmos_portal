@@ -96,6 +96,48 @@
   .file-option:hover { background:#ebf5fb; border-color:#3498db; }
   .file-option .file-name { font-size:14px; font-weight:500; }
   .file-option .file-meta { font-size:12px; color:#999; }
+
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; color: #e0e0e0; }
+    header { background: #1e293b; }
+    .panel-left { background: #222; border-right-color: #333; }
+    .panel-header { border-bottom-color: #333; }
+    .panel-header h2 { color: #aaa; }
+    .db-item { border-bottom-color: #333; }
+    .db-item:hover { background: #2a2a2a; }
+    .db-item.selected { background: #1e3a5f; border-left-color: #3498db; }
+    .db-item-meta { color: #777; }
+    .drop-zone { border-color: #444; color: #666; }
+    .drop-zone:hover, .drop-zone.dragover { border-color: #3498db; background: #1e3a5f; color: #3498db; }
+    .preview-header { background: #222; border-bottom-color: #333; }
+    .preview-header h2 { color: #ccc; }
+    .preview-header .meta { color: #888; }
+    .preview-body { background: #1a1a1a; }
+    .preview-placeholder { color: #555; }
+    .record-item { background: #252525; border-color: #333; }
+    .record-item .rec-header { color: #999; }
+    .record-item textarea { background: #2a2a2a; color: #e0e0e0; border-color: #444; }
+    .record-item textarea:focus { border-color: #3498db; }
+    .resource-table th { background: #252525; color: #888; border-bottom-color: #333; }
+    .resource-table td { border-bottom-color: #333; }
+    .toast { background: #334155; }
+    .toast.error { background: #991b1b; }
+    .progress-bar { background: #333; }
+    .dialog { background: #2a2a2a; color: #e0e0e0; }
+    .dialog textarea { background: #333; color: #e0e0e0; border-color: #444; }
+    .dialog textarea:focus { border-color: #3498db; }
+    .modal { background: #2a2a2a; }
+    .modal-header { border-bottom-color: #444; }
+    .modal-header h3 { color: #e0e0e0; }
+    .file-option { border-color: #444; }
+    .file-option:hover { background: #1e3a5f; border-color: #3498db; }
+    input[type=text], input[type=date], select { background: #333; color: #e0e0e0; border-color: #444; }
+    tr:hover td { background: #2a2a2a; }
+    th { color: #888; border-bottom-color: #333; }
+    td { border-bottom-color: #333; }
+    code { background: transparent; }
+    .hljs { background: #1e1e1e !important; }
+  }
 </style>
 </head>
 <body>
@@ -178,7 +220,8 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
