@@ -72,7 +72,7 @@ Opens a browser dashboard at `http://localhost:8000`. Press HotSync to connect. 
 
 ### Developing PalmOS Apps
 
-See [docs/palmos-dev-guide.md](docs/palmos-dev-guide.md) for the full guide.
+Apps are created on the host and compiled on-device using [OnboardC](https://onboardc.sourceforge.net/) with UI resources edited via [RsrcEdit](https://palmdb.net/app/rsrcedit). See the [OnboardC Cookbook](https://onboardc.sourceforge.net/cookbook.html) for PalmOS programming examples and [docs/palmos-dev-guide.md](docs/palmos-dev-guide.md) for the full guide.
 
 ```python
 from palm.pdb import PalmDatabase, Record, Resource, ATTR_RESOURCE
