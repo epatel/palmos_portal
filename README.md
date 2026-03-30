@@ -22,11 +22,19 @@ Includes a web dashboard with real-time device management, 3D model viewer, and 
 - libusb (`brew install libusb` on macOS)
 - A PalmOS device with USB cradle (tested with Handspring Visor)
 
-## Install
+## Quick Start
 
 ```bash
-git clone <repo>
-cd palm_com
+git clone https://github.com/epatel/palmos_portal.git
+cd palmos_portal
+./run.sh
+```
+
+`run.sh` creates a virtual environment if needed, installs dependencies, and launches the web dashboard.
+
+## Manual Install
+
+```bash
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
