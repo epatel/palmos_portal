@@ -642,7 +642,8 @@ function initViewer(data, container) {
   const maxDim = Math.max(size.x, size.y, size.z);
 
   const group = new THREE.Group();
-  group.add(new THREE.Mesh(geom, new THREE.MeshPhongMaterial({ color: 0x4a90d9, specular: 0x222222, shininess: 40, flatShading: true, side: THREE.DoubleSide })));
+  group.add(new THREE.Mesh(geom, new THREE.MeshPhongMaterial({ color: 0x4a90d9, specular: 0x222222, shininess: 40, flatShading: true, side: THREE.FrontSide })));
+  group.add(new THREE.Mesh(geom, new THREE.MeshPhongMaterial({ color: 0x8b4513, specular: 0x111111, shininess: 20, flatShading: true, side: THREE.BackSide })));
   group.add(new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color: 0x88bbff, wireframe: true, transparent: true, opacity: 0.15 })));
   scene.add(group);
   scene.add(new THREE.AmbientLight(0x404040));
