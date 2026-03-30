@@ -96,13 +96,15 @@ def build_tfrm(form_id: int, width: int, height: int, menu_id: int,
             label_text = obj["label"].encode("cp1252") + b"\x00"
             if len(label_text) % 2:
                 label_text += b"\x00"
-            # Label: id(2) + x(2) + y(2) + attr(2) + font(1) + pad(1) + text
+            # Label: id(2) + x(2) + y(2) + attr(2) + font(1) + pad(1) + textPtr(4)
+            # textPtr points to text immediately after the struct (offset = 14)
             lbl = struct.pack(
-                ">HHHHBx",
+                ">HHHHBxI",
                 obj["id"],
                 obj["x"], obj["y"],
                 0x8000,  # usable
                 obj.get("font", 0),
+                0,  # text pointer (fixed up by OS at load time)
             )
             obj_datas.append(lbl + label_text)
             obj_types.append(OBJ_LABEL)
