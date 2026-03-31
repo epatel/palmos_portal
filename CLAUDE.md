@@ -75,5 +75,11 @@ Epoch 1904-01-01 (Mac epoch). Unix offset: `2082844800` seconds.
 ### OBPJ Project Format
 Fixed 330 bytes for 2-file projects. Template-based — filename slots at offsets 115 (.Rsrc, 13B), 223 (.c, 11B), 294 (.obj, 13B). Project names max ~10 chars.
 
+### LZW Compression (StarWarsAscii)
+`projects/asciimation/tools/convert_film.py` — LZW compressor/decompressor for the StarWarsAscii PalmOS viewer. 9-bit initial codes, growing dictionary. Key: compressor grows code_size when `next_code > threshold` (not `>=`). Film text uses `\r\n` line endings, max 67 chars/line, 16KB chunks per record.
+
+### STEP Export (3D Models)
+`/api/step/{name}` — server-side export via CadQuery/OpenCascade. Sews each triangle strip into a shell (not individual triangles). Requires `cadquery` package (`pip install cadquery`).
+
 ### USB Specifics
 Handspring Visor: vendor `0x082D`, product `0x0100`. Four endpoints — use the 64-byte pair (0x82/0x02), not the 16-byte pair. Device only enumerates when HotSync pressed (~30s window). After unclean disconnect, avoid `dev.reset()` (segfaults libusb) — just drop references.
