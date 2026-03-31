@@ -1290,6 +1290,63 @@ async def get_model(name: str):
         return Response(content=str(e), status_code=500)
 
 
+@app.get("/api/step/{name}")
+async def get_step(name: str):
+    """Export a TGL0 model as STEP file."""
+    if device_manager.state != "connected":
+        return Response(content="Device not connected", status_code=503)
+    try:
+        def _export():
+            file_bytes, ext = device_manager.pull_database(name)
+            db = PalmDatabase.from_bytes(file_bytes)
+            if db.creator != "TGL0":
+                raise ValueError("Not a tinyGL model")
+            model = _parse_tgl0_model(db)
+
+            from OCP.gp import gp_Pnt
+            from OCP.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
+            from OCP.BRep import BRep_Builder
+            from OCP.TopoDS import TopoDS_Compound
+            from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs
+            from OCP.Interface import Interface_Static
+            import tempfile
+
+            builder = BRep_Builder()
+            compound = TopoDS_Compound()
+            builder.MakeCompound(compound)
+
+            verts = model["vertices"]
+            for tri in model["triangles"]:
+                p1 = gp_Pnt(*verts[tri[0]])
+                p2 = gp_Pnt(*verts[tri[1]])
+                p3 = gp_Pnt(*verts[tri[2]])
+                poly = BRepBuilderAPI_MakePolygon(p1, p2, p3, True)
+                if poly.IsDone():
+                    face = BRepBuilderAPI_MakeFace(poly.Wire(), True)
+                    if face.IsDone():
+                        builder.Add(compound, face.Face())
+
+            writer = STEPControl_Writer()
+            Interface_Static.SetCVal_s("write.step.schema", "AP214")
+            writer.Transfer(compound, STEPControl_AsIs)
+            tmp = tempfile.NamedTemporaryFile(suffix=".step", delete=False)
+            writer.Write(tmp.name)
+            with open(tmp.name, "rb") as f:
+                step_data = f.read()
+            import os
+            os.unlink(tmp.name)
+            return step_data
+
+        step_bytes = await asyncio.get_event_loop().run_in_executor(None, _export)
+        return Response(
+            content=step_bytes,
+            media_type="application/step",
+            headers={"Content-Disposition": f'attachment; filename="{name}.step"'},
+        )
+    except Exception as e:
+        return Response(content=str(e), status_code=500)
+
+
 def _parse_tgl0_model(db: PalmDatabase) -> dict:
     """Parse a TGL0 PDB into vertices and triangle strips."""
     if len(db.records) < 3:

@@ -336,7 +336,7 @@ function renderPreview(data) {
 
   if (data.kind === 'model3d') {
     window._model3dData = data.data;
-    document.getElementById('previewMeta').innerHTML = `3D Model - ${data.data.num_vertices} vertices, ${data.data.num_strips} strips <button onclick="downloadSTL()" style="margin-left:8px">Download STL</button>`;
+    document.getElementById('previewMeta').innerHTML = `3D Model - ${data.data.num_vertices} vertices, ${data.data.num_strips} strips <button onclick="downloadSTL()" style="margin-left:8px">Download STL</button> <button onclick="downloadSTEP()" style="margin-left:4px">Download STEP</button>`;
     body.innerHTML = '<div class="preview-3d" id="viewer3d"></div>';
     initViewer(data.data, document.getElementById('viewer3d'));
   } else if (data.kind === 'app') {
@@ -919,6 +919,14 @@ function savePalmDoc() {
   .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); return r.json(); })
   .then(() => { toast('Saved'); loadPreview(window._palmdocName); })
   .catch(e => toast(e.message, true));
+}
+
+// STEP export (server-side via CadQuery/OpenCascade)
+function downloadSTEP() {
+  const name = window._model3dData && window._model3dData.name;
+  if (!name) return;
+  toast('Generating STEP file...');
+  window.location = '/api/step/' + encodeURIComponent(name);
 }
 
 // STL export
