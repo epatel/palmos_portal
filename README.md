@@ -20,7 +20,7 @@ Includes a web dashboard with real-time device management, 3D model viewer, and 
 - **Web Dashboard** — browser-based device manager with live WebSocket connection
 - **Database Preview** — view memos, contacts, calendar, todos with format-aware parsing
 - **Inline Editing** — edit memos, todos, and source code directly from the browser
-- **3D Model Viewer** — render tinyGL models with Three.js, export as STL
+- **3D Model Viewer** — render tinyGL models with Three.js, export as STL or STEP
 - **App Development** — create PalmOS apps from the host, compile on-device with OnboardC
 - **Resource Builder** — programmatically generate PalmOS forms, controls, and alerts
 
@@ -82,7 +82,8 @@ Opens a browser dashboard at `http://localhost:8000`. Press HotSync to connect. 
 - Download, delete, upload databases
 - Edit memos and todos inline
 - View and edit OnboardC source code with syntax highlighting
-- View tinyGL 3D models with interactive rotation
+- View tinyGL 3D models with interactive trackball rotation
+- Export 3D models as STL or STEP (CAD-ready, via CadQuery/OpenCascade)
 - Backup all databases as a zip file
 - Dark mode support
 
@@ -107,8 +108,8 @@ tfrm = build_tfrm(1000, 160, 160, 1000, "MyApp", [
 Ready-to-install projects in `projects/`:
 
 - **breakout** — Brick-breaker game. OnboardC project (source + resources + project file). Push all three files, compile on device.
-- **tinygl** — 3D model viewer app with sample models (Glider1, Plane1). The web dashboard renders these with Three.js and can export to STL.
-- **asciimation** — Star Wars ASCII animation player. Pre-built PRC + data.
+- **tinygl** — 3D model viewer app with sample models (Glider1, Plane1). The web dashboard renders these with Three.js and can export to STL or STEP (for CAD tools like Plasticity).
+- **asciimation** — Star Wars ASCII animation player. Includes updated film data and a [LZW converter tool](projects/asciimation/tools/convert_film.py) for creating new PDB files from the HTML source. Compression format reverse-engineered from 68k disassembly.
 
 ## Protocol Stack
 
