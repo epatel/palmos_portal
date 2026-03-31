@@ -1304,7 +1304,10 @@ async def get_step(name: str):
             model = _parse_tgl0_model(db)
 
             from OCP.gp import gp_Pnt
-            from OCP.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
+            from OCP.BRepBuilderAPI import (
+                BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace,
+                BRepBuilderAPI_Sewing,
+            )
             from OCP.BRep import BRep_Builder
             from OCP.TopoDS import TopoDS_Compound
             from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs
@@ -1316,15 +1319,29 @@ async def get_step(name: str):
             builder.MakeCompound(compound)
 
             verts = model["vertices"]
-            for tri in model["triangles"]:
-                p1 = gp_Pnt(*verts[tri[0]])
-                p2 = gp_Pnt(*verts[tri[1]])
-                p3 = gp_Pnt(*verts[tri[2]])
-                poly = BRepBuilderAPI_MakePolygon(p1, p2, p3, True)
-                if poly.IsDone():
-                    face = BRepBuilderAPI_MakeFace(poly.Wire(), True)
-                    if face.IsDone():
-                        builder.Add(compound, face.Face())
+            # Sew each strip into a single shell
+            for strip in model["strips"]:
+                if len(strip) < 3:
+                    continue
+                sewing = BRepBuilderAPI_Sewing(1e-4)
+                for j in range(len(strip) - 2):
+                    a, b, c = strip[j], strip[j + 1], strip[j + 2]
+                    if a == b or b == c or a == c:
+                        continue
+                    if j % 2 == 0:
+                        tri = (a, b, c)
+                    else:
+                        tri = (b, a, c)
+                    p1 = gp_Pnt(*verts[tri[0]])
+                    p2 = gp_Pnt(*verts[tri[1]])
+                    p3 = gp_Pnt(*verts[tri[2]])
+                    poly = BRepBuilderAPI_MakePolygon(p1, p2, p3, True)
+                    if poly.IsDone():
+                        face = BRepBuilderAPI_MakeFace(poly.Wire(), True)
+                        if face.IsDone():
+                            sewing.Add(face.Face())
+                sewing.Perform()
+                builder.Add(compound, sewing.SewedShape())
 
             writer = STEPControl_Writer()
             Interface_Static.SetCVal_s("write.step.schema", "AP214")
