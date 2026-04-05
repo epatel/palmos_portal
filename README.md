@@ -108,6 +108,7 @@ tfrm = build_tfrm(1000, 160, 160, 1000, "MyApp", [
 Ready-to-install projects in `projects/`:
 
 - **breakout** — Brick-breaker game. OnboardC project (source + resources + project file). Push all three files, compile on device.
+- **game2048** — 2048 sliding tile puzzle. Pen swipe input, monochrome rendering with inverted tiles for high values. Includes a Python [build script](projects/game2048/build.py) that generates all three OnboardC project files.
 - **tinygl** — 3D model viewer app with sample models (Glider1, Plane1). The web dashboard renders these with Three.js and can export to STL or STEP (for CAD tools like Plasticity).
 - **asciimation** — Star Wars ASCII animation player. Includes updated film data and a [LZW converter tool](projects/asciimation/tools/convert_film.py) for creating new PDB files from the HTML source. Compression format reverse-engineered from 68k disassembly.
 
@@ -139,7 +140,7 @@ palmos_portal/
 │   └── static/
 │       └── index.html  # Dashboard UI
 ├── cli.py              # Command-line interface
-├── tests/              # Unit tests (53 tests)
+├── tests/              # Unit tests (67 tests)
 └── docs/
     └── palmos-dev-guide.md
 ```

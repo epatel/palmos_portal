@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install
 pip install -r requirements.txt
 
-# Run tests (53 unit tests, no device needed)
+# Run tests (67 unit tests, no device needed)
 pytest tests/ -v
 pytest tests/test_slp.py -v                                    # single file
 pytest tests/test_pdb.py::TestPDBHeader::test_roundtrip_pdb -v # single test
