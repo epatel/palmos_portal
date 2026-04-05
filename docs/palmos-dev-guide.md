@@ -336,6 +336,31 @@ case penMoveEvent:
     break;
 ```
 
+### Turn-Based Game Template
+
+For turn-based games (puzzles, card games), use `evtWaitForever` and process moves on pen events. No timer needed.
+
+```c
+// In PilotMain, block until input:
+EvtGetEvent(&event, evtWaitForever);
+
+// Swipe detection via pen down/up delta:
+case penDownEvent:
+    penStartX = pEvent->screenX;
+    penStartY = pEvent->screenY;
+    handled = true;
+    break;
+
+case penUpEvent:
+    dx = pEvent->screenX - penStartX;
+    dy = pEvent->screenY - penStartY;
+    // Determine direction from dx/dy, process move, redraw
+    handled = true;
+    break;
+```
+
+See `projects/game2048/` for a complete example: pen swipe input, slide/merge logic, and monochrome rendering with inverted tiles (`WinInvertRectangle`) for high values.
+
 ### Common Event Types
 
 | Event | Usage |
@@ -380,7 +405,9 @@ WinDrawChars(text, len, x, y)      // Draw text at position
 WinDrawRectangle(&rect, cornerRadius)  // Draw filled rectangle
 WinEraseRectangle(&rect, cornerRadius) // Erase (fill with background)
 WinDrawLine(x1, y1, x2, y2)       // Draw line
-WinInvertRectangle(&rect, 0)       // Invert pixels in rectangle
+WinDrawRectangleFrame(simpleFrame, &rect)  // Draw border only
+WinInvertRectangle(&rect, 0)       // Invert pixels (white↔black)
+FntCharsWidth(text, len)           // Get text width in pixels
 ```
 
 **Strings:**
@@ -394,6 +421,7 @@ StrCompare(s1, s2)            // String compare
 **System:**
 ```c
 TimGetTicks()                 // System tick count (~100 ticks/sec)
+SysRandom(seed)               // Random number (seed=0 for next, else reseed)
 SysTaskDelay(ticks)           // Sleep for N ticks
 EvtGetEvent(&event, timeout)  // Get event (evtWaitForever or tick count)
 SysHandleEvent(&event)        // System event processing
